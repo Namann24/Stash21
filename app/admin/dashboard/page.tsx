@@ -3,16 +3,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
-import type { Post, Feedback, Subscriber } from "@/lib/types";
-import { LogOut, Plus, Trash2, Edit3, MessageSquare, Eye, ThumbsUp, Mail, FileText, RefreshCw, Search, Radio, Clock3 } from "lucide-react";
+import type { Post, Feedback, Subscriber, Comment } from "@/lib/types";
+import { LogOut, Plus, Trash2, Edit3, MessageSquare, Eye, ThumbsUp, Mail, FileText, RefreshCw, Search, Radio, Clock3, CheckCircle2 } from "lucide-react";
 import PostEditorModal from "./PostEditorModal";
-import { SAMPLE_POSTS } from "@/lib/samplePosts";
 
-type AdminTab = "posts" | "feedback" | "subscribers";
+type AdminTab = "posts" | "feedback" | "subscribers" | "comments";
 type AdminPost = Post & {
   commentsCount?: number;
   reactions?: number;
 };
+type CommentWithPost = Comment & { posts?: { title: string } };
 
 const shortNumber = (value: number) =>
   new Intl.NumberFormat("en", { notation: value >= 10000 ? "compact" : "standard" }).format(value);
@@ -22,6 +22,7 @@ export default function AdminDashboard() {
   const [posts, setPosts] = useState<AdminPost[]>([]);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [comments, setComments] = useState<CommentWithPost[]>([]);
   const [checking, setChecking] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -50,7 +51,7 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     setRefreshing(true);
-    let finalPosts: AdminPost[] = [...SAMPLE_POSTS];
+    let finalPosts: AdminPost[] = [];
     try {
       const { data: postData } = await supabase.from("posts").select("*").order("created_at", { ascending: false });
       if (postData && postData.length > 0) {
@@ -119,19 +120,13 @@ export default function AdminDashboard() {
 
     try {
       const { data: fbData } = await supabase.from("feedback").select("*").order("created_at", { ascending: false });
-      const localFeedback = JSON.parse(localStorage.getItem("stash21_feedback") || "[]");
-      
       if (fbData && fbData.length > 0) {
-        // Merge or just use supabase
         setFeedback(fbData as Feedback[]);
-      } else if (localFeedback.length > 0) {
-        setFeedback(localFeedback);
       } else {
         setFeedback([]);
       }
     } catch {
-      const localFeedback = JSON.parse(localStorage.getItem("stash21_feedback") || "[]");
-      setFeedback(localFeedback);
+      setFeedback([]);
     }
 
     try {
@@ -144,8 +139,30 @@ export default function AdminDashboard() {
       setSubscribers([]);
     }
 
+    try {
+      const { data: commentData } = await supabase
+        .from("comments")
+        .select("*, posts(title)")
+        .order("created_at", { ascending: false });
+      if (commentData) setComments(commentData as unknown as CommentWithPost[]);
+    } catch {}
+
     setLastUpdated(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
     setRefreshing(false);
+  };
+
+  const handleApproveComment = async (id: string) => {
+    setComments((prev) => prev.map((c) => c.id === id ? { ...c, approved: true } : c));
+    try {
+      await supabase.rpc("approve_comment", { p_comment_id: id });
+    } catch {}
+  };
+
+  const handleDeleteComment = async (id: string) => {
+    setComments((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await supabase.from("comments").delete().eq("id", id);
+    } catch {}
   };
 
   const handleLogout = async () => {
@@ -155,9 +172,6 @@ export default function AdminDashboard() {
 
   const handleDeletePost = async (id: string) => {
     setPosts((prev) => prev.filter((p) => p.id !== id));
-    const localPosts = JSON.parse(localStorage.getItem("stash21_posts") || "[]");
-    const updatedLocal = localPosts.filter((p: any) => p.id !== id);
-    localStorage.setItem("stash21_posts", JSON.stringify(updatedLocal));
     try {
       await supabase.from("posts").delete().eq("id", id);
     } catch {}
@@ -204,7 +218,7 @@ export default function AdminDashboard() {
     <div className="max-w-6xl mx-auto px-6 pt-32 pb-24">
       <div className="flex items-center justify-between mb-10 flex-wrap gap-4">
         <div>
-          <p className="font-mono text-brass text-xs tracking-[0.35em] mb-2">// CONTROL ROOM</p>
+          <p className="font-mono text-brass text-xs tracking-[0.35em] mb-2">{`// CONTROL ROOM`}</p>
           <h1 className="font-display text-3xl md:text-4xl metal-text">Admin Dashboard</h1>
         </div>
         <button
@@ -245,6 +259,7 @@ export default function AdminDashboard() {
         <div className="flex gap-2 bg-black/20 w-fit rounded-full p-1 border border-white/5">
           {[
             { id: "posts", label: "Posts" },
+            { id: "comments", label: "Comments" },
             { id: "feedback", label: "Feedback" },
             { id: "subscribers", label: "Subscribers" }
           ].map((item) => (
@@ -374,6 +389,46 @@ export default function AdminDashboard() {
             </motion.div>
           ))}
           </div>
+        </div>
+      )}
+
+      {tab === "comments" && (
+        <div className="space-y-3">
+          {comments.length === 0 && (
+            <div className="card-glass rounded-xl p-5 text-steel text-sm">
+              No comments yet.
+            </div>
+          )}
+          {comments.map((comment) => (
+            <motion.div key={comment.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card-glass rounded-xl p-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-3.5 h-3.5 text-brass" />
+                  <span className="text-xs font-mono text-steel">{comment.author_name}</span>
+                  {comment.posts?.title && (
+                    <span className="text-xs text-steel/60">on &ldquo;{comment.posts.title}&rdquo;</span>
+                  )}
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                    comment.approved ? "text-circuit border-circuit/40" : "text-maroon border-maroon/40"
+                  }`}>
+                    {comment.approved ? "Approved" : "Pending"}
+                  </span>
+                </div>
+                <span className="text-xs text-steel/70">{new Date(comment.created_at).toLocaleDateString()}</span>
+              </div>
+              <p className="text-sm text-steel leading-relaxed mb-3">{comment.content}</p>
+              <div className="flex gap-2">
+                {!comment.approved && (
+                  <button onClick={() => handleApproveComment(comment.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-circuit/40 text-circuit text-xs hover:bg-circuit/10" data-cursor-hover>
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                  </button>
+                )}
+                <button onClick={() => handleDeleteComment(comment.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-maroon/40 text-maroon text-xs hover:bg-maroon/10" data-cursor-hover>
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
+              </div>
+            </motion.div>
+          ))}
         </div>
       )}
 

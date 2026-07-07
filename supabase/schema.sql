@@ -23,7 +23,7 @@ create table if not exists comments (
   author_name text not null default 'Anonymous Maker',
   content text not null,
   created_at timestamptz not null default now(),
-  approved boolean not null default true
+  approved boolean not null default false
 );
 
 create table if not exists reactions (
@@ -38,8 +38,12 @@ create table if not exists post_reactions (
   id uuid primary key default gen_random_uuid(),
   post_id uuid references posts(id) on delete cascade,
   emoji text not null,
+  visitor_id text not null default '',
   created_at timestamptz not null default now()
 );
+
+-- Add visitor_id if upgrading existing table
+alter table post_reactions add column if not exists visitor_id text not null default '';
 
 create table if not exists subscribers (
   id uuid primary key default gen_random_uuid(),
@@ -68,10 +72,20 @@ create table if not exists upvotes (
 );
 
 -- RPC helpers
-create or replace function increment_reaction(p_post_id uuid, p_emoji text)
+create or replace function toggle_reaction(p_post_id uuid, p_emoji text, p_visitor_id text)
 returns void as $$
+declare
+  existing_id uuid;
 begin
-  insert into post_reactions (post_id, emoji) values (p_post_id, p_emoji);
+  select id into existing_id from post_reactions
+    where post_id = p_post_id and emoji = p_emoji and visitor_id = p_visitor_id
+    limit 1;
+
+  if found then
+    delete from post_reactions where id = existing_id;
+  else
+    insert into post_reactions (post_id, emoji, visitor_id) values (p_post_id, p_emoji, p_visitor_id);
+  end if;
 end;
 $$ language plpgsql security definer;
 
@@ -89,6 +103,32 @@ begin
 end;
 $$ language plpgsql security definer;
 
+create or replace function toggle_feedback_vote(p_feedback_id uuid, p_visitor_id text)
+returns void as $$
+declare
+  existing_id uuid;
+begin
+  select id into existing_id from upvotes
+    where feedback_id = p_feedback_id and voter_fingerprint = p_visitor_id
+    limit 1;
+
+  if found then
+    delete from upvotes where id = existing_id;
+    update feedback set votes = greatest(0, votes - 1) where id = p_feedback_id;
+  else
+    insert into upvotes (feedback_id, voter_fingerprint) values (p_feedback_id, p_visitor_id);
+    update feedback set votes = votes + 1 where id = p_feedback_id;
+  end if;
+end;
+$$ language plpgsql security definer;
+
+create or replace function approve_comment(p_comment_id uuid)
+returns void as $$
+begin
+  update comments set approved = true where id = p_comment_id;
+end;
+$$ language plpgsql security definer;
+
 -- Row level security
 alter table posts enable row level security;
 alter table comments enable row level security;
@@ -102,6 +142,7 @@ create policy "Public can read published posts" on posts for select using (publi
 create policy "Authenticated can manage posts" on posts for all using (auth.role() = 'authenticated');
 
 create policy "Public can read approved comments" on comments for select using (approved = true);
+create policy "Authenticated can read all comments" on comments for select using (auth.role() = 'authenticated');
 create policy "Public can insert comments" on comments for insert with check (true);
 create policy "Authenticated can manage comments" on comments for all using (auth.role() = 'authenticated');
 

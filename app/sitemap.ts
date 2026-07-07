@@ -1,11 +1,10 @@
 import type { MetadataRoute } from "next";
 import { supabase } from "@/lib/supabaseClient";
-import { SAMPLE_POSTS } from "@/lib/samplePosts";
 import type { Post } from "@/lib/types";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://stash21.com";
-  let posts: Post[] = SAMPLE_POSTS;
+  let posts: Post[] = [];
 
   try {
     const { data } = await supabase

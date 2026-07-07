@@ -19,7 +19,7 @@ export default function NotFound() {
         transition={{ delay: 0.2 }}
         className="text-steel mb-8 max-w-md"
       >
-        This circuit doesn't complete. The page you're looking for got desoldered.
+        This circuit doesn&apos;t complete. The page you&apos;re looking for got desoldered.
       </motion.p>
       <MagneticButton href="/" className="px-8 py-3.5 rounded-full btn-primary">
         Back to Workshop

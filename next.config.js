@@ -7,7 +7,6 @@ const nextConfig = {
     optimizePackageImports: [
       "lucide-react",
       "framer-motion",
-      "@react-three/drei",
       "date-fns",
     ],
   },
