@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Send, Filter, ThumbsUp } from "lucide-react";
+import { Send, Filter, ThumbsUp, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import type { Feedback } from "@/lib/types";
+import { logError } from "@/lib/errorHandler";
 import ScrollReveal from "@/components/ScrollReveal";
 import TiltCard from "@/components/TiltCard";
 
@@ -22,16 +23,20 @@ export default function FeedbackClient() {
   const [userVotes, setUserVotes] = useState<string[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const { data } = await supabase.from("feedback").select("*").order("votes", { ascending: false });
+        if (cancelled) return;
         const localData = JSON.parse(localStorage.getItem("stash21_feedback") || "[]");
         if (data && data.length > 0) {
           setBoard(data as Feedback[]);
         } else if (localData.length > 0) {
           setBoard(localData);
         }
-      } catch {
+      } catch (err) {
+        logError("FeedbackClient.loadBoard", err);
+        if (cancelled) return;
         const localData = JSON.parse(localStorage.getItem("stash21_feedback") || "[]");
         if (localData.length > 0) {
           setBoard(localData);
@@ -41,6 +46,7 @@ export default function FeedbackClient() {
       const savedVotes = localStorage.getItem("stash21_votes");
       if (savedVotes) setUserVotes(JSON.parse(savedVotes));
     })();
+    return () => { cancelled = true; };
   }, []);
 
   const handleSubmit = async () => {
@@ -63,7 +69,7 @@ export default function FeedbackClient() {
     setName("");
     setEmail("");
     setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 2500);
+    const timer = setTimeout(() => setSubmitted(false), 2500);
     try {
       await supabase.from("feedback").insert({
         name: entry.name,
@@ -71,8 +77,11 @@ export default function FeedbackClient() {
         category: entry.category,
         message: entry.message
       });
-    } catch {}
+    } catch (err) {
+      logError("FeedbackClient.submit", err);
+    }
     setSubmitting(false);
+    return () => clearTimeout(timer);
   };
 
   const handleVote = async (id: string) => {
@@ -89,7 +98,9 @@ export default function FeedbackClient() {
       if (!hasVoted) {
         await supabase.rpc("increment_feedback_vote", { p_feedback_id: id });
       }
-    } catch {}
+    } catch (err) {
+      logError("FeedbackClient.vote", err);
+    }
   };
 
   const filtered = board.filter((f) => {
@@ -122,7 +133,7 @@ export default function FeedbackClient() {
         transition={{ delay: 0.15 }}
         className="text-steel mb-14 max-w-2xl"
       >
-        Tell us what you'd like to see next, or vote on what the community already suggested.
+        Tell us what you&apos;d like to see next, or vote on what the community already suggested.
       </motion.p>
 
       <div className="grid lg:grid-cols-2 gap-8">
@@ -180,7 +191,7 @@ export default function FeedbackClient() {
               className="flex items-center gap-2 px-6 py-3 rounded-full btn-primary text-sm disabled:opacity-50"
               data-cursor-hover
             >
-              <Send className="w-4 h-4" /> {submitted ? "Sent!" : "Send Message"}
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} {submitted ? "Sent!" : submitting ? "Sending..." : "Send Message"}
             </button>
           </div>
         </ScrollReveal>

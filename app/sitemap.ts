@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { supabase } from "@/lib/supabaseClient";
+import { logError } from "@/lib/errorHandler";
 import type { Post } from "@/lib/types";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -14,7 +15,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .order("updated_at", { ascending: false });
 
     if (data && data.length > 0) posts = data as Post[];
-  } catch {}
+  } catch (err) {
+    logError("sitemap", err);
+  }
 
   return [
     {

@@ -12,7 +12,8 @@ if (!supabaseAnonKey) {
 }
 
 const customFetch = (url: RequestInfo | URL, options?: RequestInit) => {
-  return fetch(url, { ...options, signal: AbortSignal.timeout(8000) });
+  const isStorage = typeof url === "string" && url.includes("/storage/");
+  return fetch(url, { ...options, signal: AbortSignal.timeout(isStorage ? 120000 : 30000) });
 };
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

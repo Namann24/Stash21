@@ -41,9 +41,9 @@ export default function CategoryStrip() {
             transition={{ delay: i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           >
             <TiltCard className="h-full">
-              <div className="hud-corners card-glass rounded-2xl p-5 h-full flex flex-col items-center gap-3 hover:glow-border-strong transition-shadow duration-300 cursor-pointer group" data-cursor-hover>
+              <div className="hud-corners scan-card holo-card card-glass rounded-2xl p-5 h-full flex flex-col items-center gap-3 hover:glow-border-strong transition-shadow duration-300 cursor-pointer group" data-cursor-hover>
                 <span className="absolute top-2.5 right-3 font-mono text-[9px] text-steel/50 tracking-widest">{c.code}</span>
-                <div className="w-12 h-12 rounded-full bg-metal-gradient flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <div className="w-12 h-12 rounded-full bg-metal-gradient flex items-center justify-center group-hover:scale-110 transition-transform duration-300 bounce-hover">
                   <c.icon className="w-6 h-6 text-ink" />
                 </div>
                 <span className="text-sm text-brass-light font-medium text-center">{c.label}</span>

@@ -81,4 +81,4 @@ This version uses a local Supabase shim so the site builds cleanly without pulli
 
 ## Modern stack note
 
-The project now avoids `react-markdown` and uses a custom renderer instead, which removes the outdated unified dependency path that caused build failures.
+The blog uses `react-markdown` with `rehype-highlight` for syntax highlighting and `rehype-slug` for heading anchors — all rendered through a shared `MarkdownRenderer` component.

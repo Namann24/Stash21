@@ -1,5 +1,35 @@
-node_modules
-.next
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment variables
 .env.local
-out
+.env*.local
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# OpenCode
+opencode.json
+
+# AI agent files
+.agent/
+.agents/
+
+# AI/tool lock files
+skills-lock.json
+baseline.lock
+baseline.marker
+init.lock
+maintenance.lock
+secondary-index-baseline

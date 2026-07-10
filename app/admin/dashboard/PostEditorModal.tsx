@@ -1,12 +1,56 @@
 "use client";
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { AlertCircle, Eye, Image as ImageIcon, Pencil, Save, X } from "lucide-react";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  AlertCircle,
+  Check,
+  Eye,
+  Hash,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Loader2,
+  Pencil,
+  Send,
+  Tag,
+  X
+} from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import type { Post } from "@/lib/types";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
+import { uploadCoverImage, uploadInlineImage } from "@/lib/uploadImage";
 
-const CATEGORIES = ["Projects", "IoT Networking", "Hardware Builds", "Tutorials", "Microcontrollers", "Power & Circuits"];
+const CATEGORIES = [
+  "Projects",
+  "IoT Networking",
+  "Hardware Builds",
+  "Tutorials",
+  "Microcontrollers",
+  "Power & Circuits"
+];
+
+type EditorSnapshot = {
+  title: string;
+  slug: string;
+  category: string;
+  coverImage: string;
+  tags: string;
+  excerpt: string;
+  content: string;
+};
+
+function snapshotFromPost(post: Post | null): EditorSnapshot {
+  return {
+    title: post?.title || "",
+    slug: post?.slug || "",
+    category: post?.category || CATEGORIES[0],
+    coverImage: post?.cover_image || "",
+    tags: post?.tags?.join(", ") || "",
+    excerpt: post?.excerpt || "",
+    content: post?.content || ""
+  };
+}
 
 export default function PostEditorModal({
   post,
@@ -17,46 +61,100 @@ export default function PostEditorModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [title, setTitle] = useState(post?.title || "");
-  const [slug, setSlug] = useState(post?.slug || "");
-  const [category, setCategory] = useState(post?.category || CATEGORIES[0]);
-  const [coverImage, setCoverImage] = useState(post?.cover_image || "");
-  const [tags, setTags] = useState(post?.tags?.join(", ") || "");
-  const [content, setContent] = useState(post?.content || "");
-  const [published, setPublished] = useState(post?.published ?? true);
+  const initial = useMemo(() => snapshotFromPost(post), [post]);
+  const [title, setTitle] = useState(initial.title);
+  const [slug, setSlug] = useState(initial.slug);
+  const [category, setCategory] = useState(initial.category);
+  const [coverImage, setCoverImage] = useState(initial.coverImage);
+  const [tags, setTags] = useState(initial.tags);
+  const [excerpt, setExcerpt] = useState(initial.excerpt);
+  const [content, setContent] = useState(initial.content);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState("");
   const [mode, setMode] = useState<"write" | "preview">("write");
+  const [uploadingInline, setUploadingInline] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const inlineInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [onClose]);
+  const isDirty = useMemo(() => {
+    return (
+      title !== initial.title ||
+      slug !== initial.slug ||
+      category !== initial.category ||
+      coverImage !== initial.coverImage ||
+      tags !== initial.tags ||
+      excerpt !== initial.excerpt ||
+      content !== initial.content
+    );
+  }, [title, slug, category, coverImage, tags, excerpt, content, initial]);
 
   const autoSlug = (val: string) =>
     val.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const requestClose = useCallback(() => {
+    if (isDirty && !window.confirm("You have unsaved changes. Discard them?")) return;
+    onClose();
+  }, [isDirty, onClose]);
+
+  useEffect(() => {
+    setMounted(true);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") requestClose();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [requestClose]);
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => setCoverImage(e.target?.result as string);
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+    setUploadingCover(true);
+    const url = await uploadCoverImage(file);
+    setUploadingCover(false);
+    if (url) setCoverImage(url);
+    e.target.value = "";
   };
 
-  const handleSave = async () => {
+  const handleInlineImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingInline(true);
+    const url = await uploadInlineImage(file);
+    setUploadingInline(false);
+    if (!url) return;
+
+    const markdown = `![${file.name}](${url})`;
+    const textarea = contentRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const before = content.slice(0, start);
+      const after = content.slice(end);
+      const newContent = before + markdown + after;
+      setContent(newContent);
+      requestAnimationFrame(() => {
+        textarea.focus();
+        const pos = start + markdown.length;
+        textarea.setSelectionRange(pos, pos);
+      });
+    } else {
+      setContent((prev) => prev + "\n" + markdown);
+    }
+    e.target.value = "";
+  };
+
+  const handleSave = async (isPublished: boolean) => {
     setSaveError("");
     setSaving(true);
     const payload = {
@@ -65,9 +163,11 @@ export default function PostEditorModal({
       category,
       cover_image: coverImage || null,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      excerpt: excerpt || null,
       content,
-      published
+      published: isPublished
     };
+
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) {
@@ -78,193 +178,344 @@ export default function PostEditorModal({
         const { error } = await supabase.from("posts").update(payload).eq("id", post.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("posts").insert(payload);
+        const insertPayload = {
+          ...payload,
+          author_id: sessionData.session.user.id
+        };
+        const { error } = await supabase.from("posts").insert(insertPayload);
         if (error) throw error;
       }
+
       setSaving(false);
-      onSaved();
+      setSaveSuccess(isPublished ? "Published successfully" : "Draft saved");
+      setTimeout(() => {
+        setSaveSuccess("");
+        onSaved();
+      }, 900);
     } catch (error: unknown) {
       const message =
         typeof error === "object" && error !== null && "message" in error
           ? String((error as { message: unknown }).message)
-          : "Supabase could not save this post. Please check the posts table policies and try again.";
+          : "Could not save this post. Check database policies and try again.";
       setSaveError(message);
       setSaving(false);
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[200] bg-black/75 p-3 backdrop-blur-sm md:p-5">
+  if (!mounted) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[10000] flex items-stretch justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-label={post ? "Edit post" : "New post"}
+    >
+      <motion.button
+        type="button"
+        aria-label="Close editor"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="absolute inset-0 bg-black/70 backdrop-blur-md"
+        onClick={requestClose}
+      />
+
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="mx-auto flex h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-brass/35 bg-[linear-gradient(145deg,rgba(20,12,7,0.96),rgba(6,6,8,0.98))] shadow-[0_0_0_1px_rgba(232,206,140,0.18),0_24px_90px_rgba(0,0,0,0.65)] md:h-[calc(100dvh-2.5rem)]"
+        initial={{ opacity: 0, y: 24, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.985 }}
+        transition={{ type: "spring", damping: 28, stiffness: 320 }}
+        className="relative z-10 flex flex-col w-full h-full md:h-[calc(100vh-2rem)] md:max-w-[1320px] md:my-4 md:rounded-2xl overflow-hidden admin-editor-shell holo-card shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-copper/20 px-5 py-4 md:px-7">
-          <div>
-            <p className="hud-label text-steel">{post ? "Editing Draft" : "Publishing Bay"}</p>
-            <h2 className="mt-1 font-display text-2xl text-brass">{post ? "Edit Post" : "New Post"}</h2>
-          </div>
-          <button onClick={onClose} className="text-steel transition-colors hover:text-brass-light" data-cursor-hover>
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-5 md:px-7">
-        <label className="text-xs text-steel mb-1.5 block">Title</label>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full bg-black/30 border border-copper/20 rounded-lg px-4 py-2.5 mb-4 text-sm text-brass-light focus:outline-none focus:border-copper"
-        />
-
-        <label className="text-xs text-steel mb-1.5 block">Slug (auto-generated if left blank)</label>
-        <input
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-          placeholder={autoSlug(title)}
-          className="w-full bg-black/30 border border-copper/20 rounded-lg px-4 py-2.5 mb-4 text-sm text-brass-light placeholder:text-steel/50 focus:outline-none focus:border-copper"
-        />
-
-        <div className="grid sm:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="text-xs text-steel mb-1.5 block">Category</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full bg-black/30 border border-copper/20 rounded-lg px-4 py-2.5 text-sm text-brass-light focus:outline-none focus:border-copper"
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-steel mb-1.5 block">Cover Image</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="w-full bg-black/30 border border-copper/20 rounded-lg px-4 py-2 text-sm text-brass-light file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-medium file:bg-copper/20 file:text-brass-light hover:file:bg-copper/30 file:cursor-pointer cursor-pointer focus:outline-none focus:border-copper"
-            />
-            {coverImage && (
-              <div className="mt-2 text-[10px] text-steel/70 truncate">
-                Image selected (preview available below)
-              </div>
-            )}
-          </div>
-        </div>
-
-        <label className="text-xs text-steel mb-1.5 block">Tags (comma separated)</label>
-        <input
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-          placeholder="esp32, mqtt, sensors"
-          className="w-full bg-black/30 border border-copper/20 rounded-lg px-4 py-2.5 mb-4 text-sm text-brass-light placeholder:text-steel/50 focus:outline-none focus:border-copper"
-        />
-
-        <div className="flex items-center justify-between gap-3 mb-2">
-          <label className="text-xs text-steel block">Content (Markdown supported)</label>
-          <div className="flex bg-black/30 border border-copper/20 rounded-full p-1">
+        <div className="absolute inset-0 z-0 bg-slate-panel/70 backdrop-blur-2xl" />
+        {/* Header */}
+        <header className="relative z-10 flex-none flex items-center justify-between gap-4 px-4 md:px-6 h-16 border-b border-copper/10 bg-slate-panel/40 backdrop-blur-xl">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
-              onClick={() => setMode("write")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${mode === "write" ? "bg-metal-gradient text-ink" : "text-steel"}`}
-              data-cursor-hover
+              onClick={requestClose}
+              className="admin-close-btn group flex items-center gap-2 pl-2 pr-4 py-2 rounded-xl border border-copper/20 bg-black/20 hover:bg-maroon/10 hover:border-maroon/30 transition-all shrink-0"
             >
-              <Pencil className="w-3.5 h-3.5" /> Write
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("preview")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${mode === "preview" ? "bg-metal-gradient text-ink" : "text-steel"}`}
-              data-cursor-hover
-            >
-              <Eye className="w-3.5 h-3.5" /> Preview
-            </button>
-          </div>
-        </div>
-
-        <div className="grid lg:grid-cols-2 gap-4 mb-4">
-          <div className={`${mode === "preview" ? "hidden lg:block" : "block"}`}>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={18}
-              placeholder={"## Build Notes\n\nWrite your project teardown, code blocks, and lessons learned here."}
-              className="w-full min-h-[430px] bg-black/30 border border-copper/20 rounded-xl px-4 py-3 text-sm text-brass-light font-mono focus:outline-none focus:border-copper resize-none"
-            />
-          </div>
-          <div className={`${mode === "write" ? "hidden lg:block" : "block"} rounded-xl border border-copper/20 bg-black/25 p-4 min-h-[430px] overflow-y-auto`}>
-            {coverImage ? (
-              <div className="mb-5 overflow-hidden rounded-lg border border-copper/20">
-                <img src={coverImage} alt="" className="h-44 w-full object-cover" />
-              </div>
-            ) : (
-              <div className="mb-5 flex h-24 items-center justify-center rounded-lg border border-dashed border-copper/25 text-steel/70">
-                <ImageIcon className="w-4 h-4 mr-2" /> Cover preview
-              </div>
-            )}
-            <div className="mb-5">
-              <span className="text-[10px] font-mono text-brass border border-copper/30 rounded-full px-2 py-0.5">
-                {category}
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-black/30 group-hover:bg-maroon/20 transition-colors">
+                <X className="w-4 h-4 text-steel group-hover:text-maroon transition-colors" />
               </span>
-              <h3 className="font-display text-2xl text-brass-light mt-3">{title || "Untitled Post"}</h3>
-              {tags && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {tags.split(",").map((tag) => tag.trim()).filter(Boolean).slice(0, 5).map((tag) => (
-                    <span key={tag} className="text-[10px] font-mono text-steel border border-steel/30 rounded-full px-2 py-0.5">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-            {content.trim() ? (
-              <MarkdownRenderer content={content} />
-            ) : (
-              <p className="text-sm text-steel/70">Start writing to see the live preview.</p>
-            )}
-          </div>
-        </div>
+              <span className="hidden sm:inline text-sm font-medium text-steel group-hover:text-brass-light transition-colors">
+                Close
+              </span>
+            </button>
 
-        <label className="flex items-center gap-2 pb-6 text-sm text-steel">
-          <input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} className="accent-brass" />
-          Published
-        </label>
-        </div>
+            <div className="hidden sm:block h-6 w-px bg-copper/15" />
 
-        <div className="flex shrink-0 flex-col gap-3 border-t border-copper/20 bg-black/45 px-5 py-4 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between md:px-7">
-          <div>
-            <p className="text-xs text-steel">
-              {published ? "This post will be visible on the blog after Supabase confirms the save." : "Draft mode keeps this post hidden."}
-            </p>
-            {saveError && (
-              <p className="mt-2 flex items-center gap-2 text-xs text-rose-200">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                {saveError}
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-brass-light truncate">
+                {post ? "Edit Post" : "New Post"}
               </p>
-            )}
+              <p className="text-[11px] text-steel truncate">
+                {isDirty ? "Unsaved changes" : post?.published ? "Published" : "Draft"}
+              </p>
+            </div>
           </div>
-          <div className="flex gap-3">
+
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={onClose}
-              className="rounded-full btn-outline px-5 py-2.5 text-sm"
-              data-cursor-hover
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
+              type="button"
+              onClick={() => handleSave(false)}
               disabled={saving || !title.trim()}
-              className="flex items-center gap-2 rounded-full btn-primary px-6 py-2.5 text-sm disabled:opacity-50"
-              data-cursor-hover
+              className="hidden sm:inline-flex px-4 py-2 rounded-xl text-sm font-medium text-steel hover:text-brass-light border border-copper/15 hover:border-copper/30 hover:bg-copper/5 transition-all disabled:opacity-40"
             >
-              <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save Post"}
+              {saving ? "Saving..." : "Save draft"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSave(true)}
+              disabled={saving || !title.trim()}
+              className="inline-flex items-center gap-2 px-4 md:px-5 py-2 rounded-xl btn-primary text-sm font-medium disabled:opacity-40 shadow-[0_0_20px_rgba(201,162,75,0.15)] hover:shadow-[0_0_30px_rgba(201,162,75,0.3)] transition-all bounce-hover"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              {saving ? "Saving..." : post?.published ? "Update" : "Publish"}
             </button>
           </div>
+        </header>
+
+        {/* Body */}
+        <div className="relative z-10 flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+          {/* Editor pane */}
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-none flex items-center justify-between gap-3 px-4 md:px-6 py-3 border-b border-copper/10">
+              <div className="flex p-1 rounded-lg bg-black/40 border border-copper/15 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]">
+                <button
+                  type="button"
+                  onClick={() => setMode("write")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    mode === "write" ? "bg-copper/15 text-brass-light" : "text-steel hover:text-brass-light"
+                  }`}
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Write
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("preview")}
+                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    mode === "preview" ? "bg-copper/20 text-brass-light shadow-[0_2px_10px_rgba(201,162,75,0.15)]" : "text-steel hover:text-brass-light"
+                  }`}
+                >
+                  <Eye className="w-3.5 h-3.5" /> Preview
+                </button>
+              </div>
+
+              <input
+                ref={inlineInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleInlineImageUpload}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => inlineInputRef.current?.click()}
+                disabled={uploadingInline}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-copper/20 text-xs font-medium text-steel hover:text-brass-light hover:border-copper/40 hover:bg-white/5 transition-all disabled:opacity-50 bounce-hover"
+              >
+                {uploadingInline ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ImageIcon className="w-3.5 h-3.5" />
+                )}
+                Insert image
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8 hide-scrollbar">
+              <div className="max-w-3xl mx-auto">
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Post title"
+                  className="w-full bg-transparent text-3xl md:text-4xl font-display text-brass-light placeholder:text-steel/35 focus:outline-none mb-6"
+                />
+
+                {mode === "write" ? (
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/20 pointer-events-none rounded-b-xl z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <textarea
+                      ref={contentRef}
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      placeholder="Write your post in Markdown..."
+                      className="w-full min-h-[320px] md:min-h-[420px] bg-transparent text-base text-steel font-mono focus:outline-none resize-none leading-relaxed placeholder:text-steel/25 pb-20 relative z-0"
+                    />
+                  </div>
+                ) : (
+                  <div className="min-h-[320px] pb-12 prose-admin">
+                    {content.trim() ? (
+                      <MarkdownRenderer content={content} />
+                    ) : (
+                      <p className="text-steel/40 font-mono text-sm py-16 text-center">
+                        Nothing to preview yet
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Mobile save row */}
+            <div className="sm:hidden flex-none border-t border-copper/10 p-4 flex gap-2 bg-slate-panel/60">
+              <button
+                type="button"
+                onClick={() => handleSave(false)}
+                disabled={saving || !title.trim()}
+                className="flex-1 py-3 rounded-xl border border-copper/25 text-sm font-medium disabled:opacity-40"
+              >
+                Draft
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSave(true)}
+                disabled={saving || !title.trim()}
+                className="flex-1 py-3 rounded-xl btn-primary text-sm disabled:opacity-40"
+              >
+                Publish
+              </button>
+            </div>
+          </div>
+
+          {/* Settings pane */}
+          <aside className="lg:w-[340px] xl:w-[380px] shrink-0 border-t lg:border-t-0 lg:border-l border-copper/10 bg-black/30 flex flex-col max-h-[45vh] lg:max-h-none">
+            <div className="flex-1 overflow-y-auto p-6 space-y-8 hide-scrollbar">
+              {/* Cover */}
+              <section>
+                <p className="admin-field-label mb-3">
+                  <ImageIcon className="w-3.5 h-3.5" /> Cover image
+                </p>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && coverInputRef.current?.click()}
+                  onClick={() => coverInputRef.current?.click()}
+                  className="relative rounded-xl overflow-hidden border border-dashed border-copper/25 bg-black/20 aspect-[16/9] flex items-center justify-center cursor-pointer group hover:border-copper/45 transition-colors"
+                >
+                  {coverImage ? (
+                    <>
+                      <img src={coverImage} alt="Cover preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="text-xs font-medium text-white px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm">
+                          Change image
+                        </span>
+                      </div>
+                    </>
+                  ) : uploadingCover ? (
+                    <Loader2 className="w-6 h-6 text-brass animate-spin" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-steel/60">
+                      <ImageIcon className="w-6 h-6" />
+                      <span className="text-xs">Click to upload</span>
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleCoverUpload}
+                  className="hidden"
+                />
+              </section>
+
+              {/* Metadata */}
+              <section className="space-y-4">
+                <p className="admin-field-label">
+                  <Tag className="w-3.5 h-3.5" /> Details
+                </p>
+
+                <div>
+                  <label className="admin-input-label">Category</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="admin-input focus:ring-1 focus:ring-circuit/50 focus:border-circuit/50 transition-all shadow-[inset_0_2px_10px_rgba(0,0,0,0.3)]"
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="admin-input-label">Tags</label>
+                  <div className="relative">
+                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-copper/50" />
+                    <input
+                      value={tags}
+                      onChange={(e) => setTags(e.target.value)}
+                      placeholder="hardware, esp32, diy"
+                      className="admin-input !pl-9 focus:ring-1 focus:ring-circuit/50 focus:border-circuit/50 transition-all shadow-[inset_0_2px_10px_rgba(0,0,0,0.3)]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="admin-input-label">URL slug</label>
+                  <div className="relative">
+                    <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-copper/50" />
+                    <input
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value)}
+                      placeholder={autoSlug(title) || "post-slug"}
+                      className="admin-input !pl-9 font-mono text-xs focus:ring-1 focus:ring-circuit/50 focus:border-circuit/50 transition-all shadow-[inset_0_2px_10px_rgba(0,0,0,0.3)]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="admin-input-label">Excerpt</label>
+                  <textarea
+                    value={excerpt}
+                    onChange={(e) => setExcerpt(e.target.value)}
+                    placeholder="Short summary for cards and SEO..."
+                    rows={3}
+                    className="admin-input resize-none focus:ring-1 focus:ring-circuit/50 focus:border-circuit/50 transition-all shadow-[inset_0_2px_10px_rgba(0,0,0,0.3)]"
+                  />
+                </div>
+              </section>
+            </div>
+
+            <div className="flex-none p-4 border-t border-copper/10">
+              <AnimatePresence>
+                {saveSuccess && (
+                  <motion.p
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center gap-2 text-xs text-circuit bg-circuit/10 border border-circuit/25 px-3 py-2 rounded-lg mb-2"
+                  >
+                    <Check className="w-3.5 h-3.5" /> {saveSuccess}
+                  </motion.p>
+                )}
+                {saveError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center gap-2 text-xs text-rose-300 bg-rose-500/10 border border-rose-500/25 px-3 py-2 rounded-lg"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5" /> {saveError}
+                  </motion.p>
+                )}
+              </AnimatePresence>
+              <p className="text-[10px] text-steel/60 font-mono">
+                {content.length.toLocaleString()} chars · Esc to close
+              </p>
+            </div>
+          </aside>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 }

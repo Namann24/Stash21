@@ -1,30 +1,73 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
+import { logError } from "@/lib/errorHandler";
 import type { Post, Feedback, Subscriber, Comment } from "@/lib/types";
-import { LogOut, Plus, Trash2, Edit3, MessageSquare, Eye, ThumbsUp, Mail, FileText, RefreshCw, Search, Radio, Clock3, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
+import {
+  CheckCircle2,
+  ArrowLeft,
+  Menu,
+  Edit3,
+  Eye,
+  FileText,
+  Loader2,
+  Mail,
+  MessageSquare,
+  Plus,
+  RefreshCw,
+  Search,
+  ThumbsUp,
+  Trash2,
+  TrendingUp,
+  Users,
+  Zap
+} from "lucide-react";
 import PostEditorModal from "./PostEditorModal";
+import AdminSidebar, { type AdminSection } from "@/components/admin/AdminSidebar";
 
-type AdminTab = "posts" | "feedback" | "subscribers" | "comments";
-type AdminPost = Post & {
-  commentsCount?: number;
-  reactions?: number;
-};
+type AdminPost = Post & { commentsCount?: number; reactions?: number };
 type CommentWithPost = Comment & { posts?: { title: string } };
 
 const shortNumber = (value: number) =>
   new Intl.NumberFormat("en", { notation: value >= 10000 ? "compact" : "standard" }).format(value);
 
+const SECTION_TITLES: Record<AdminSection, { title: string; subtitle: string }> = {
+  overview: {
+    title: "Dashboard",
+    subtitle: "Overview of your blog performance and recent activity."
+  },
+  posts: {
+    title: "Posts",
+    subtitle: "Create, edit, and manage published content."
+  },
+  comments: {
+    title: "Comments",
+    subtitle: "Review and moderate reader comments."
+  },
+  feedback: {
+    title: "Feedback",
+    subtitle: "Community suggestions and feature requests."
+  },
+  subscribers: {
+    title: "Subscribers",
+    subtitle: "Newsletter subscribers and audience growth."
+  }
+};
+
 export default function AdminDashboard() {
-  const [tab, setTab] = useState<AdminTab>("posts");
+  const [section, setSection] = useState<AdminSection>("overview");
   const [posts, setPosts] = useState<AdminPost[]>([]);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [comments, setComments] = useState<CommentWithPost[]>([]);
   const [checking, setChecking] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [postSearch, setPostSearch] = useState("");
@@ -33,9 +76,6 @@ export default function AdminDashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    const handleBeforeUnload = () => supabase.auth.signOut();
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
@@ -45,8 +85,6 @@ export default function AdminDashboard() {
       setChecking(false);
       loadData();
     })();
-    
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [router]);
 
   const loadData = async () => {
@@ -54,21 +92,17 @@ export default function AdminDashboard() {
     let finalPosts: AdminPost[] = [];
     try {
       const { data: postData } = await supabase.from("posts").select("*").order("created_at", { ascending: false });
-      if (postData && postData.length > 0) {
-        finalPosts = postData as AdminPost[];
-      }
-    } catch {}
-
+      if (postData && postData.length > 0) finalPosts = postData as AdminPost[];
+    } catch (err) {
+      logError("AdminDashboard.loadPosts", err);
+    }
     finalPosts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     const postIds = finalPosts.map((post) => post.id);
 
     if (postIds.length > 0) {
       try {
-        const { data: commentRows } = await supabase
-          .from("comments")
-          .select("post_id")
-          .in("post_id", postIds);
+        const { data: commentRows } = await supabase.from("comments").select("post_id").in("post_id", postIds);
         if (commentRows) {
           const commentCounts = commentRows.reduce<Record<string, number>>((acc, row) => {
             acc[row.post_id] = (acc[row.post_id] || 0) + 1;
@@ -79,13 +113,12 @@ export default function AdminDashboard() {
             commentsCount: commentCounts[post.id] || post.commentsCount || 0
           }));
         }
-      } catch {}
+      } catch (err) {
+        logError("AdminDashboard.loadComments", err);
+      }
 
       try {
-        const { data: reactionRows } = await supabase
-          .from("post_reactions")
-          .select("post_id")
-          .in("post_id", postIds);
+        const { data: reactionRows } = await supabase.from("post_reactions").select("post_id").in("post_id", postIds);
         if (reactionRows) {
           const reactionCounts = reactionRows.reduce<Record<string, number>>((acc, row) => {
             acc[row.post_id] = (acc[row.post_id] || 0) + 1;
@@ -96,12 +129,10 @@ export default function AdminDashboard() {
             reactions: reactionCounts[post.id] || 0
           }));
         }
-      } catch {
+      } catch (err) {
+        logError("AdminDashboard.loadReactions", err);
         try {
-          const { data: reactionRows } = await supabase
-            .from("reactions")
-            .select("post_id,count")
-            .in("post_id", postIds);
+          const { data: reactionRows } = await supabase.from("reactions").select("post_id,count").in("post_id", postIds);
           if (reactionRows) {
             const reactionCounts = reactionRows.reduce<Record<string, number>>((acc, row) => {
               acc[row.post_id] = (acc[row.post_id] || 0) + (row.count || 0);
@@ -112,7 +143,9 @@ export default function AdminDashboard() {
               reactions: reactionCounts[post.id] || post.reactions || 0
             }));
           }
-        } catch {}
+        } catch (err2) {
+          logError("AdminDashboard.loadReactions.fallback", err2);
+        }
       }
     }
 
@@ -120,49 +153,48 @@ export default function AdminDashboard() {
 
     try {
       const { data: fbData } = await supabase.from("feedback").select("*").order("created_at", { ascending: false });
-      if (fbData && fbData.length > 0) {
-        setFeedback(fbData as Feedback[]);
-      } else {
-        setFeedback([]);
-      }
-    } catch {
+      setFeedback(fbData && fbData.length > 0 ? (fbData as Feedback[]) : []);
+    } catch (err) {
+      logError("AdminDashboard.loadFeedback", err);
       setFeedback([]);
     }
 
     try {
-      const { data: subscriberData } = await supabase
-        .from("subscribers")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const { data: subscriberData } = await supabase.from("subscribers").select("*").order("created_at", { ascending: false });
       setSubscribers((subscriberData || []) as Subscriber[]);
-    } catch {
+    } catch (err) {
+      logError("AdminDashboard.loadSubscribers", err);
       setSubscribers([]);
     }
 
     try {
-      const { data: commentData } = await supabase
-        .from("comments")
-        .select("*, posts(title)")
-        .order("created_at", { ascending: false });
+      const { data: commentData } = await supabase.from("comments").select("*, posts(title)").order("created_at", { ascending: false });
       if (commentData) setComments(commentData as unknown as CommentWithPost[]);
-    } catch {}
+    } catch (err) {
+      logError("AdminDashboard.loadCommentsAll", err);
+    }
 
     setLastUpdated(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
     setRefreshing(false);
   };
 
   const handleApproveComment = async (id: string) => {
-    setComments((prev) => prev.map((c) => c.id === id ? { ...c, approved: true } : c));
+    setComments((prev) => prev.map((c) => (c.id === id ? { ...c, approved: true } : c)));
     try {
       await supabase.rpc("approve_comment", { p_comment_id: id });
-    } catch {}
+    } catch (err) {
+      logError("AdminDashboard.approveComment", err);
+    }
   };
 
   const handleDeleteComment = async (id: string) => {
+    if (!window.confirm("Delete this comment? This cannot be undone.")) return;
     setComments((prev) => prev.filter((c) => c.id !== id));
     try {
       await supabase.from("comments").delete().eq("id", id);
-    } catch {}
+    } catch (err) {
+      logError("AdminDashboard.deleteComment", err);
+    }
   };
 
   const handleLogout = async () => {
@@ -171,10 +203,13 @@ export default function AdminDashboard() {
   };
 
   const handleDeletePost = async (id: string) => {
+    if (!window.confirm("Delete this post permanently? This cannot be undone.")) return;
     setPosts((prev) => prev.filter((p) => p.id !== id));
     try {
       await supabase.from("posts").delete().eq("id", id);
-    } catch {}
+    } catch (err) {
+      logError("AdminDashboard.deletePost", err);
+    }
   };
 
   const handleNewPost = () => {
@@ -194,7 +229,8 @@ export default function AdminDashboard() {
     feedback: feedback.length,
     reactions: posts.reduce((sum, post) => sum + (post.reactions || 0), 0),
     comments: posts.reduce((sum, post) => sum + (post.commentsCount || 0), 0),
-    drafts: posts.filter((post) => !post.published).length
+    drafts: posts.filter((post) => !post.published).length,
+    pendingComments: comments.filter((c) => !c.approved).length
   };
 
   const filteredPosts = posts.filter((post) => {
@@ -210,256 +246,458 @@ export default function AdminDashboard() {
     return matchesSearch && matchesStatus;
   });
 
+  const meta = SECTION_TITLES[section];
+
   if (checking) {
-    return <div className="min-h-screen flex items-center justify-center text-steel">Verifying access...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-brass animate-spin" />
+          <p className="text-sm text-steel">Loading dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-6 pt-32 pb-24">
-      <div className="flex items-center justify-between mb-10 flex-wrap gap-4">
-        <div>
-          <p className="font-mono text-brass text-xs tracking-[0.35em] mb-2">{`// CONTROL ROOM`}</p>
-          <h1 className="font-display text-3xl md:text-4xl metal-text">Admin Dashboard</h1>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-full btn-outline text-sm"
-          data-cursor-hover
-        >
-          <LogOut className="w-4 h-4" /> Sign Out
-        </button>
-      </div>
+    <div className="min-h-screen flex">
+      <AdminSidebar
+        active={section}
+        onNavigate={(s) => {
+          setSection(s);
+          setIsMobileMenuOpen(false);
+        }}
+        onLogout={handleLogout}
+        badges={{
+          comments: stats.pendingComments,
+          feedback: stats.feedback
+        }}
+        isMobileOpen={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
+      />
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {[
-          { label: "Total Posts", value: stats.posts, icon: FileText, hint: `${stats.drafts} drafts` },
-          { label: "Global Views", value: stats.views, icon: Eye, hint: `${stats.comments} comments` },
-          { label: "Subscribers", value: stats.subscribers, icon: Mail, hint: "Newsletter list" },
-          { label: "Feedback", value: stats.feedback, icon: MessageSquare, hint: `${stats.reactions} reactions` }
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <div key={item.label} className="card-glass rounded-xl p-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="hud-label text-steel mb-2">{item.label}</p>
-                  <p className="font-display text-3xl metal-text">{shortNumber(item.value)}</p>
-                  <p className="text-xs text-steel/70 mt-1">{item.hint}</p>
-                </div>
-                <div className="w-11 h-11 rounded-full border border-copper/30 bg-black/20 flex items-center justify-center text-brass">
-                  <Icon className="w-5 h-5" />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
-        <div className="flex gap-2 bg-black/20 w-fit rounded-full p-1 border border-white/5">
-          {[
-            { id: "posts", label: "Posts" },
-            { id: "comments", label: "Comments" },
-            { id: "feedback", label: "Feedback" },
-            { id: "subscribers", label: "Subscribers" }
-          ].map((item) => (
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top bar */}
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 px-4 md:px-8 py-4 border-b border-copper/10 bg-slate-panel/70 backdrop-blur-xl">
+          <div className="flex items-center gap-3 min-h-0 relative">
             <button
-              key={item.id}
-              onClick={() => setTab(item.id as AdminTab)}
-              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${tab === item.id ? "bg-metal-gradient text-ink" : "text-steel"}`}
-              data-cursor-hover
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden p-2 -ml-2 text-steel hover:text-brass-light transition-colors"
             >
-              {item.label}
+              <Menu className="w-5 h-5" />
+            </button>
+            {/* Subtle glow behind title */}
+            <div className="absolute -inset-4 bg-brass/10 blur-xl rounded-full opacity-50 pointer-events-none" />
+            <h1 className="font-display text-2xl md:text-3xl text-brass-light truncate relative z-10">{meta.title}</h1>
+            <p className="text-sm text-steel truncate hidden sm:block relative z-10">{meta.subtitle}</p>
+          </div>
+          <div className="flex items-center gap-2 md:gap-4 shrink-0">
+            <div className="hidden lg:flex items-center gap-3 pr-4 border-r border-copper/10">
+              <Link
+                href="/"
+                className="hidden xl:inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-copper/15 text-xs text-steel hover:text-brass-light hover:border-copper/30 transition-all"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back to site
+              </Link>
+              <ThemeToggle />
+            </div>
+            <button
+              type="button"
+              onClick={loadData}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl border border-copper/15 text-xs text-steel hover:text-brass-light hover:border-copper/40 hover:bg-black/20 transition-all disabled:opacity-50 bounce-hover"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">{lastUpdated ? `Updated ${lastUpdated}` : "Refresh"}</span>
+            </button>
+            {section === "posts" && (
+              <button
+                type="button"
+                onClick={handleNewPost}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl btn-primary text-sm font-medium shadow-[0_0_20px_rgba(201,162,75,0.12)] hover:shadow-[0_0_30px_rgba(201,162,75,0.25)] bounce-hover transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">New post</span>
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* Mobile nav */}
+        <div className="lg:hidden flex gap-1 overflow-x-auto px-4 py-3 border-b border-copper/10 hide-scrollbar">
+          {(["overview", "posts", "comments", "feedback", "subscribers"] as AdminSection[]).map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setSection(id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap capitalize transition-all ${
+                section === id ? "bg-copper/15 text-brass-light border border-copper/25" : "text-steel"
+              }`}
+            >
+              {id}
             </button>
           ))}
         </div>
-        <button
-          onClick={loadData}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 rounded-full btn-outline text-xs disabled:opacity-60"
-          data-cursor-hover
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
-          {lastUpdated ? `Synced ${lastUpdated}` : "Refresh"}
-        </button>
-      </div>
 
-      {tab === "posts" && (
-        <div>
-          <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-            <button
-              onClick={handleNewPost}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full btn-primary text-sm"
-              data-cursor-hover
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={section}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
             >
-              <Plus className="w-4 h-4" /> New Post
-            </button>
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-copper/60" />
-                <input
-                  value={postSearch}
-                  onChange={(e) => setPostSearch(e.target.value)}
-                  placeholder="Search posts..."
-                  className="w-56 bg-black/30 border border-copper/20 rounded-full pl-9 pr-4 py-2 text-sm text-brass-light placeholder:text-steel/50 focus:outline-none focus:border-copper"
-                />
-              </div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as "all" | "published" | "draft")}
-                className="bg-black/30 border border-copper/20 rounded-full px-4 py-2 text-sm text-brass-light focus:outline-none focus:border-copper"
-              >
-                <option value="all">All statuses</option>
-                <option value="published">Published</option>
-                <option value="draft">Drafts</option>
-              </select>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {filteredPosts.length === 0 && <p className="text-steel text-sm">No posts match the current view.</p>}
-            {filteredPosts.map((post) => (
-              <motion.div
-                key={post.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="card-glass rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap"
-              >
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${post.published ? "text-brass border-copper/40" : "text-steel border-steel/30"}`}>
-                      {post.published ? "Published" : "Draft"}
-                    </span>
-                    <span className="text-[10px] font-mono text-steel">{post.category}</span>
+              {section === "overview" && (
+                <div className="space-y-8">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                      { label: "Total views", value: stats.views, icon: Eye, accent: "text-circuit" },
+                      { label: "Posts", value: stats.posts, icon: FileText, accent: "text-brass" },
+                      { label: "Comments", value: stats.comments, icon: MessageSquare, accent: "text-violet" },
+                      { label: "Subscribers", value: stats.subscribers, icon: Users, accent: "text-copper" }
+                    ].map((card, i) => (
+                      <motion.div 
+                        key={card.label} 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="admin-stat-card scan-card holo-card hover:-translate-y-1 transition-transform duration-300"
+                      >
+                        <div className="flex items-center justify-between mb-4">
+                          <card.icon className={`w-5 h-5 ${card.accent}`} />
+                          <TrendingUp className="w-3.5 h-3.5 text-steel/40" />
+                        </div>
+                        <p className="text-2xl md:text-3xl font-display text-brass-light drop-shadow-[0_0_8px_rgba(201,162,75,0.2)]">{shortNumber(card.value)}</p>
+                        <p className="text-xs text-steel mt-1">{card.label}</p>
+                      </motion.div>
+                    ))}
                   </div>
-                  <h3 className="text-brass-light font-medium">{post.title}</h3>
-                  <div className="flex items-center gap-4 mt-2">
-                    <div className="flex items-center gap-1.5 text-steel/70">
-                      <Eye className="w-3.5 h-3.5" />
-                      <span className="text-xs font-mono">{post.views || 0}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-steel/70">
-                      <ThumbsUp className="w-3.5 h-3.5" />
-                      <span className="text-xs font-mono">{post.reactions || 0}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-steel/70">
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span className="text-xs font-mono">{post.commentsCount || 0}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => handleEditPost(post)} className="w-9 h-9 rounded-full border border-copper/30 flex items-center justify-center text-brass hover:bg-copper/10" data-cursor-hover>
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDeletePost(post.id)} className="w-9 h-9 rounded-full border border-maroon/40 flex items-center justify-center text-maroon hover:bg-maroon/10" data-cursor-hover>
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {tab === "feedback" && (
-        <div>
-          <div className="grid md:grid-cols-3 gap-4 mb-6">
-            {feedback.slice(0, 3).map((f) => (
-              <div key={f.id} className="card-glass rounded-xl p-4">
-                <p className="hud-label text-brass mb-2">{f.category}</p>
-                <p className="text-sm text-steel line-clamp-2">{f.message}</p>
-              </div>
-            ))}
-          </div>
-          <div className="space-y-3">
-          {feedback.length === 0 && <p className="text-steel text-sm">No feedback submitted yet.</p>}
-          {feedback.map((f) => (
-            <motion.div key={f.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card-glass rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <MessageSquare className="w-3.5 h-3.5 text-brass" />
-                <span className="text-[10px] font-mono text-brass border border-copper/30 rounded-full px-2 py-0.5">{f.category}</span>
-                <span className="text-[10px] font-mono text-steel">{f.votes} votes</span>
-              </div>
-              <p className="text-steel text-sm leading-relaxed">{f.message}</p>
-              {(f.name || f.email) && (
-                <p className="text-steel/60 text-xs mt-2">
-                  {f.name || "Anonymous"} {f.email ? `· ${f.email}` : ""}
-                </p>
+                  <div className="grid lg:grid-cols-2 gap-6">
+                    <div className="admin-panel holo-card overflow-hidden">
+                      <div className="flex items-center justify-between mb-5 relative z-10">
+                        <h2 className="text-sm font-semibold text-brass-light">Recent posts</h2>
+                        <button type="button" onClick={() => setSection("posts")} className="text-xs text-circuit hover:underline">
+                          View all
+                        </button>
+                      </div>
+                      {posts.length === 0 ? (
+                        <p className="text-sm text-steel py-8 text-center">No posts yet</p>
+                      ) : (
+                        <div className="space-y-2 stagger-children relative z-10">
+                          {posts.slice(0, 5).map((post) => (
+                            <button
+                              key={post.id}
+                              type="button"
+                              onClick={() => handleEditPost(post)}
+                              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-black/20 border border-transparent hover:border-copper/15 transition-all text-left group card-tilt-glow"
+                            >
+                              <div className="w-10 h-10 rounded-lg bg-copper/10 border border-copper/15 flex items-center justify-center shrink-0 overflow-hidden group-hover:border-copper/30 transition-colors">
+                                {post.cover_image ? (
+                                  <img src={post.cover_image} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                ) : (
+                                  <FileText className="w-4 h-4 text-brass/60" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-brass-light truncate group-hover:text-brass transition-colors">{post.title}</p>
+                                <p className="text-[11px] text-steel">{post.published ? "Published" : "Draft"} · {shortNumber(post.views || 0)} views</p>
+                              </div>
+                              <Edit3 className="w-3.5 h-3.5 text-circuit opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="admin-panel scan-card border-flow overflow-hidden">
+                      <div className="flex items-center justify-between mb-5 relative z-10">
+                        <h2 className="text-sm font-semibold text-brass-light">Quick stats</h2>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 relative z-10">
+                        {[
+                          { label: "Drafts", value: stats.drafts },
+                          { label: "Reactions", value: stats.reactions },
+                          { label: "Pending comments", value: stats.pendingComments },
+                          { label: "Feedback", value: stats.feedback }
+                        ].map((item) => (
+                          <div key={item.label} className="rounded-xl border border-copper/10 bg-black/10 p-4">
+                            <p className="text-xl font-display text-brass-light">{shortNumber(item.value)}</p>
+                            <p className="text-[11px] text-steel mt-1">{item.label}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleNewPost}
+                        className="mt-5 w-full flex items-center justify-center gap-2 py-3 rounded-xl btn-primary text-sm font-medium relative z-10 shadow-[0_0_15px_rgba(201,162,75,0.1)] hover:shadow-[0_0_25px_rgba(201,162,75,0.25)] transition-all bounce-hover"
+                      >
+                        <Plus className="w-4 h-4" /> Create new post
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {section === "posts" && (
+                <div className="space-y-5">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-steel/50" />
+                      <input
+                        value={postSearch}
+                        onChange={(e) => setPostSearch(e.target.value)}
+                        placeholder="Search posts..."
+                        className="admin-input pl-10 w-full"
+                      />
+                    </div>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as "all" | "published" | "draft")}
+                      className="admin-input sm:w-40"
+                    >
+                      <option value="all">All status</option>
+                      <option value="published">Published</option>
+                      <option value="draft">Drafts</option>
+                    </select>
+                  </div>
+
+                  {filteredPosts.length === 0 ? (
+                    <div className="admin-empty">
+                      <FileText className="w-12 h-12 text-steel/30 mb-3" />
+                      <p className="text-brass-light font-medium">No posts found</p>
+                      <p className="text-sm text-steel mt-1">Try different filters or create a new post.</p>
+                      <button type="button" onClick={handleNewPost} className="mt-4 px-5 py-2.5 rounded-xl btn-primary text-sm">
+                        New post
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="admin-panel overflow-hidden p-0 holo-card">
+                      <div className="overflow-x-auto relative z-10">
+                        <table className="admin-table w-full">
+                          <thead>
+                            <tr>
+                              <th>Post</th>
+                              <th className="hidden md:table-cell">Status</th>
+                              <th className="hidden sm:table-cell">Views</th>
+                              <th className="hidden lg:table-cell">Engagement</th>
+                              <th className="text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredPosts.map((post) => (
+                              <tr key={post.id} className="group">
+                                <td>
+                                  <div className="flex items-center gap-3 min-w-[200px]">
+                                    <div className="w-11 h-11 rounded-lg bg-copper/10 border border-copper/15 overflow-hidden shrink-0">
+                                      {post.cover_image ? (
+                                        <img src={post.cover_image} alt="" className="w-full h-full object-cover" />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <FileText className="w-4 h-4 text-brass/50" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-medium text-brass-light truncate max-w-[280px]">{post.title}</p>
+                                      <p className="text-[11px] text-steel">{post.category}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="hidden md:table-cell">
+                                  <span className={`admin-badge ${post.published ? "admin-badge-live" : "admin-badge-draft"}`}>
+                                    {post.published ? "Published" : "Draft"}
+                                  </span>
+                                </td>
+                                <td className="hidden sm:table-cell">
+                                  <span className="text-sm text-steel font-mono">{shortNumber(post.views || 0)}</span>
+                                </td>
+                                <td className="hidden lg:table-cell">
+                                  <div className="flex items-center gap-4 text-xs text-steel">
+                                    <span className="flex items-center gap-1"><ThumbsUp className="w-3 h-3" />{shortNumber(post.reactions || 0)}</span>
+                                    <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{shortNumber(post.commentsCount || 0)}</span>
+                                  </div>
+                                </td>
+                                <td>
+                                  <div className="flex items-center justify-end gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEditPost(post)}
+                                        className="admin-icon-btn bounce-hover"
+                                        aria-label="Edit post"
+                                      >
+                                      <Edit3 className="w-4 h-4" />
+                                    </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeletePost(post.id)}
+                                        className="admin-icon-btn admin-icon-btn-danger bounce-hover"
+                                        aria-label="Delete post"
+                                      >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {section === "feedback" && (
+                <div className="space-y-4">
+                  {feedback.length === 0 ? (
+                    <div className="admin-empty">
+                      <Zap className="w-12 h-12 text-steel/30 mb-3" />
+                      <p className="text-brass-light font-medium">No feedback yet</p>
+                      <p className="text-sm text-steel mt-1">Community feedback will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {feedback.map((f, i) => (
+                        <motion.div
+                          key={f.id}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.04 }}
+                          className="admin-panel holo-card hover:-translate-y-1 transition-transform"
+                        >
+                          <div className="relative z-10">
+                            <div className="flex justify-between items-start mb-3">
+                              <span className="admin-badge admin-badge-live">{f.category}</span>
+                              <span className="text-[11px] font-mono text-steel">{f.votes} votes</span>
+                            </div>
+                            <p className="text-sm text-brass-light leading-relaxed line-clamp-4 mb-4">{f.message}</p>
+                            <div className="pt-3 border-t border-copper/10 flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-copper/10 flex items-center justify-center">
+                                <Mail className="w-3.5 h-3.5 text-steel" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-brass-light">{f.name || "Anonymous"}</p>
+                                {f.email && <p className="text-[10px] font-mono text-steel">{f.email}</p>}
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {section === "comments" && (
+                <div className="space-y-4">
+                  {comments.length === 0 ? (
+                    <div className="admin-empty">
+                      <MessageSquare className="w-12 h-12 text-steel/30 mb-3" />
+                      <p className="text-brass-light font-medium">No comments</p>
+                      <p className="text-sm text-steel mt-1">Reader comments will show up here.</p>
+                    </div>
+                  ) : (
+                    comments.map((comment, i) => (
+                      <motion.div
+                        key={comment.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        className={`admin-panel holo-card hover:border-copper/30 transition-all ${!comment.approved ? "ring-1 ring-circuit/30 shadow-[0_0_15px_rgba(77,216,232,0.15)]" : ""}`}
+                      >
+                        <div className="relative z-10">
+                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-4">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-medium text-brass-light text-sm">{comment.author_name}</p>
+                              <span className="text-[10px] text-steel">{new Date(comment.created_at).toLocaleDateString()}</span>
+                            </div>
+                            {comment.posts?.title && (
+                              <p className="text-xs text-steel">On: {comment.posts.title}</p>
+                            )}
+                          </div>
+                          <span className={`admin-badge ${comment.approved ? "admin-badge-draft" : "admin-badge-pending"}`}>
+                            {comment.approved ? "Approved" : "Pending review"}
+                          </span>
+                        </div>
+                        <p className="text-sm text-steel leading-relaxed bg-black/10 rounded-xl p-4 mb-4">{comment.content}</p>
+                        <div className="flex justify-end gap-2">
+                          {!comment.approved && (
+                            <button
+                              type="button"
+                              onClick={() => handleApproveComment(comment.id)}
+                              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-circuit border border-circuit/30 hover:bg-circuit/10 hover:shadow-[0_0_15px_rgba(77,216,232,0.2)] transition-all bounce-hover"
+                            >
+                              <CheckCircle2 className="w-4 h-4" /> Approve
+                            </button>
+                          )}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-maroon border border-maroon/30 hover:bg-maroon/10 hover:shadow-[0_0_15px_rgba(235,87,87,0.2)] transition-all bounce-hover"
+                            >
+                              <Trash2 className="w-4 h-4" /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {section === "subscribers" && (
+                <div className="space-y-4">
+                  {subscribers.length === 0 ? (
+                    <div className="admin-empty">
+                      <Users className="w-12 h-12 text-steel/30 mb-3" />
+                      <p className="text-brass-light font-medium">No subscribers</p>
+                      <p className="text-sm text-steel mt-1">Newsletter signups will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="admin-panel overflow-hidden p-0">
+                      <div className="overflow-x-auto">
+                        <table className="admin-table w-full">
+                          <thead>
+                            <tr>
+                              <th>Email</th>
+                              <th className="hidden sm:table-cell">Joined</th>
+                              <th className="text-right">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {subscribers.map((subscriber) => (
+                              <tr key={subscriber.id}>
+                                <td>
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-full bg-copper/10 flex items-center justify-center">
+                                      <Mail className="w-4 h-4 text-brass/70" />
+                                    </div>
+                                    <span className="text-sm text-brass-light">{subscriber.email}</span>
+                                  </div>
+                                </td>
+                                <td className="hidden sm:table-cell text-sm text-steel">
+                                  {new Date(subscriber.created_at).toLocaleDateString()}
+                                </td>
+                                <td className="text-right">
+                                  <span className="admin-badge admin-badge-live">Active</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </motion.div>
-          ))}
-          </div>
-        </div>
-      )}
-
-      {tab === "comments" && (
-        <div className="space-y-3">
-          {comments.length === 0 && (
-            <div className="card-glass rounded-xl p-5 text-steel text-sm">
-              No comments yet.
-            </div>
-          )}
-          {comments.map((comment) => (
-            <motion.div key={comment.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card-glass rounded-xl p-4">
-              <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="w-3.5 h-3.5 text-brass" />
-                  <span className="text-xs font-mono text-steel">{comment.author_name}</span>
-                  {comment.posts?.title && (
-                    <span className="text-xs text-steel/60">on &ldquo;{comment.posts.title}&rdquo;</span>
-                  )}
-                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
-                    comment.approved ? "text-circuit border-circuit/40" : "text-maroon border-maroon/40"
-                  }`}>
-                    {comment.approved ? "Approved" : "Pending"}
-                  </span>
-                </div>
-                <span className="text-xs text-steel/70">{new Date(comment.created_at).toLocaleDateString()}</span>
-              </div>
-              <p className="text-sm text-steel leading-relaxed mb-3">{comment.content}</p>
-              <div className="flex gap-2">
-                {!comment.approved && (
-                  <button onClick={() => handleApproveComment(comment.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-circuit/40 text-circuit text-xs hover:bg-circuit/10" data-cursor-hover>
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Approve
-                  </button>
-                )}
-                <button onClick={() => handleDeleteComment(comment.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-maroon/40 text-maroon text-xs hover:bg-maroon/10" data-cursor-hover>
-                  <Trash2 className="w-3.5 h-3.5" /> Delete
-                </button>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {tab === "subscribers" && (
-        <div className="space-y-3">
-          {subscribers.length === 0 && (
-            <div className="card-glass rounded-xl p-5 text-steel text-sm">
-              No newsletter subscribers yet.
-            </div>
-          )}
-          {subscribers.map((subscriber) => (
-            <motion.div key={subscriber.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card-glass rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-full border border-copper/30 bg-black/20 flex items-center justify-center text-brass shrink-0">
-                  <Mail className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-brass-light text-sm truncate">{subscriber.email}</p>
-                  <p className="text-steel/70 text-xs font-mono flex items-center gap-1.5 mt-1">
-                    <Clock3 className="w-3 h-3" />
-                    {new Date(subscriber.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-circuit">
-                <Radio className="w-3.5 h-3.5" /> Active
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
+          </AnimatePresence>
+        </main>
+      </div>
 
       {editorOpen && (
         <PostEditorModal

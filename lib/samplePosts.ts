@@ -4,6 +4,7 @@ export const SAMPLE_POSTS: Post[] = [
   {
     id: "sample-1",
     title: "Building a Solar-Powered ESP32 Weather Station",
+    excerpt: "Build a fully off-grid ESP32 weather station with solar power, BME280 sensor, and MQTT reporting — plus deep sleep power budgeting tips.",
     slug: "solar-esp32-weather-station",
     content: `# Building a Solar-Powered ESP32 Weather Station
 
@@ -48,6 +49,7 @@ After three weeks outdoors through rain and full sun, the battery has never drop
   {
     id: "sample-2",
     title: "MQTT vs LoRa: Choosing the Right Protocol for Your IoT Build",
+    excerpt: "Compare MQTT and LoRa for real IoT builds — range, power, bandwidth, and a practical hybrid approach that gets you the best of both worlds.",
     slug: "mqtt-vs-lora-iot-protocol",
     content: `# MQTT vs LoRa: Choosing the Right Protocol
 
@@ -86,6 +88,7 @@ Most of our recent builds actually use both: LoRa nodes report to a central ESP3
   {
     id: "sample-3",
     title: "Reverse-Engineering a Cheap Smart Plug's Firmware",
+    excerpt: "Pull the firmware off a budget Tuya-based smart plug and flash open-source Tasmota for full local MQTT control — no cloud dependency required.",
     slug: "reverse-engineering-smart-plug-firmware",
     content: `# Reverse-Engineering a Cheap Smart Plug
 

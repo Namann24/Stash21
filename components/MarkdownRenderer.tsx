@@ -1,11 +1,48 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeSlug from "rehype-slug";
+import { Check, Copy } from "lucide-react";
 import "highlight.js/styles/atom-one-dark.css";
 
 type Props = { content: string };
+
+function CodeBlock({ children, className, ...props }: any) {
+  const [copied, setCopied] = useState(false);
+  const code = String(children).replace(/\n$/, "");
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  }, [code]);
+
+  return (
+    <div className="relative group rounded-xl overflow-hidden my-8 border border-copper/20 bg-slate-panel shadow-lg">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-copper/10 bg-black/40">
+        <div className="flex gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-500/80" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+          <div className="w-3 h-3 rounded-full bg-green-500/80" />
+        </div>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 text-[11px] font-mono text-steel/60 hover:text-brass-light transition-colors px-2 py-1 rounded-md hover:bg-white/5"
+          aria-label={copied ? "Copied" : "Copy code"}
+          data-cursor-hover
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-circuit" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="p-4 overflow-x-auto text-sm" {...props}>{children}</pre>
+    </div>
+  );
+}
 
 export default function MarkdownRenderer({ content }: Props) {
   return (
@@ -21,20 +58,20 @@ export default function MarkdownRenderer({ content }: Props) {
           ol: ({ node, ...props }) => <ol className="list-decimal pl-6 space-y-2 mb-6" {...props} />,
           li: ({ node, ...props }) => <li className="marker:text-copper/70" {...props} />,
           a: ({ node, ...props }) => <a className="underline decoration-copper/40 underline-offset-4 hover:decoration-brass transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
-          pre: ({ node, ...props }) => (
-            <div className="relative group rounded-xl overflow-hidden my-8 border border-copper/20 bg-slate-panel shadow-lg">
-              <div className="flex items-center justify-between px-4 py-2 border-b border-copper/10 bg-black/40">
-                <div className="flex gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                  <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                </div>
-              </div>
-              <pre className="p-4 overflow-x-auto text-sm" {...props} />
-            </div>
+          img: ({ src, alt }) => (
+            <img
+              src={src}
+              alt={alt || ""}
+              className="rounded-xl border border-copper/20 my-6 max-w-full h-auto"
+              loading="lazy"
+            />
           ),
+          pre: ({ node, children, ...props }) => {
+            const codeElement = children as any;
+            const codeString = codeElement?.props?.children?.[0] || "";
+            return <CodeBlock {...codeElement?.props}>{codeString}</CodeBlock>;
+          },
           code: ({ node, inline, className, children, ...props }: any) => {
-            const match = /language-(\w+)/.exec(className || "");
             return !inline ? (
               <code className={className} {...props}>
                 {children}

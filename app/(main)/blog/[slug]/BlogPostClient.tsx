@@ -4,8 +4,9 @@ import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import type { Post, Comment } from "@/lib/types";
+import { logError } from "@/lib/errorHandler";
 import { supabase } from "@/lib/supabaseClient";
-import { Send, ArrowLeft, Clock, Eye, List } from "lucide-react";
+import { Send, ArrowLeft, Clock, Eye, List, Loader2 } from "lucide-react";
 import ScrollReveal from "@/components/ScrollReveal";
 import Link from "next/link";
 import Image from "next/image";
@@ -35,6 +36,7 @@ export default function BlogPostClient({
   const [userReactions, setUserReactions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [views, setViews] = useState(post?.views || 0);
+  const [activeHeader, setActiveHeader] = useState("");
 
   const readTime = Math.max(1, Math.ceil((currentPost?.content || "").split(/\s+/).length / 200));
   const headers = (currentPost?.content || "")
@@ -61,7 +63,9 @@ export default function BlogPostClient({
         const fetchedPost = data as Post;
         setCurrentPost(fetchedPost);
         setViews(fetchedPost.views || 0);
-      } catch {}
+      } catch (err) {
+        logError("BlogPostClient.fetchPost", err);
+      }
     })();
 
     return () => {
@@ -73,11 +77,17 @@ export default function BlogPostClient({
     if (!currentPost) return;
 
     (async () => {
-      // Increment views
-      try {
-        await supabase.rpc("increment_post_view", { p_post_id: currentPost.id });
-        setViews(prev => prev + 1);
-      } catch {}
+      // Increment views (once per session)
+      const viewedKey = `stash21_viewed_${currentPost.id}`;
+      if (!sessionStorage.getItem(viewedKey)) {
+        try {
+          await supabase.rpc("increment_post_view", { p_post_id: currentPost.id });
+          setViews(prev => prev + 1);
+          sessionStorage.setItem(viewedKey, "1");
+        } catch (err) {
+          logError("BlogPostClient.incrementView", err);
+        }
+      }
 
       try {
         const { data } = await supabase
@@ -87,7 +97,9 @@ export default function BlogPostClient({
           .eq("approved", true)
           .order("created_at", { ascending: false });
         if (data) setComments(data as Comment[]);
-      } catch {}
+      } catch (err) {
+        logError("BlogPostClient.fetchComments", err);
+      }
 
       try {
         const { data } = await supabase
@@ -101,7 +113,8 @@ export default function BlogPostClient({
           }, {});
           setReactionCounts(counts);
         }
-      } catch {
+      } catch (err) {
+        logError("BlogPostClient.fetchReactions", err);
         try {
           const { data } = await supabase
             .from("reactions")
@@ -115,7 +128,9 @@ export default function BlogPostClient({
               }, {})
             );
           }
-        } catch {}
+        } catch (err2) {
+          logError("BlogPostClient.fetchReactions.fallback", err2);
+        }
       }
       
       const savedReactions = localStorage.getItem(`stash21_reactions_${currentPost.id}`);
@@ -124,6 +139,27 @@ export default function BlogPostClient({
       }
     })();
   }, [currentPost?.id]);
+
+  useEffect(() => {
+    if (!headers.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setActiveHeader(entry.target.id);
+          }
+        }
+      },
+      { rootMargin: "-80px 0px -70% 0px" }
+    );
+
+    for (const header of headers) {
+      const el = document.getElementById(header.id);
+      if (el) observer.observe(el);
+    }
+
+    return () => observer.disconnect();
+  }, [headers]);
 
   const handleReact = async (emoji: string) => {
     if (!currentPost) return;
@@ -142,7 +178,9 @@ export default function BlogPostClient({
     
     try {
       await supabase.rpc("increment_reaction", { p_post_id: currentPost.id, p_emoji: emoji });
-    } catch {}
+    } catch (err) {
+      logError("BlogPostClient.incrementReaction", err);
+    }
   };
 
   const handleSubmitComment = async () => {
@@ -165,7 +203,9 @@ export default function BlogPostClient({
         author_name: newComment.author_name,
         content: newComment.content
       });
-    } catch {}
+    } catch (err) {
+      logError("BlogPostClient.submitComment", err);
+    }
     setSubmitting(false);
   };
 
@@ -237,7 +277,7 @@ export default function BlogPostClient({
           transition={{ delay: 0.15 }}
           className="rounded-2xl overflow-hidden mb-16 glow-border w-full h-[40vh] md:h-[60vh] relative"
         >
-          <Image src={currentPost.cover_image} alt={currentPost.title} fill className="object-cover" priority />
+          <Image src={currentPost.cover_image} alt={currentPost.title} fill sizes="100vw" className="object-cover" priority />
         </motion.div>
       )}
 
@@ -305,7 +345,7 @@ export default function BlogPostClient({
                 className="flex items-center gap-2 px-5 py-2.5 rounded-full btn-primary text-sm disabled:opacity-50"
                 data-cursor-hover
               >
-                <Send className="w-3.5 h-3.5" /> Post Comment
+                {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} {submitting ? "Posting..." : "Post Comment"}
               </button>
             </div>
 
@@ -334,7 +374,7 @@ export default function BlogPostClient({
                 <li key={header.id}>
                   <a 
                     href={`#${header.id}`} 
-                    className="text-steel hover:text-brass-light text-sm line-clamp-2 transition-colors"
+                    className={`text-sm line-clamp-2 transition-colors ${activeHeader === header.id ? "text-brass-light" : "text-steel hover:text-brass-light"}`}
                     data-cursor-hover
                   >
                     {header.text}
@@ -358,7 +398,7 @@ export default function BlogPostClient({
                   <TiltCard className="hud-corners group block card-glass rounded-2xl overflow-hidden hover:glow-border-strong transition-shadow duration-300 h-full">
                     <div className="h-40 bg-metal-gradient relative overflow-hidden">
                       {rp.cover_image ? (
-                        <Image src={rp.cover_image} alt={rp.title} fill className="object-cover group-hover:scale-110 transition-transform duration-700" />
+                        <Image src={rp.cover_image} alt={rp.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover group-hover:scale-110 transition-transform duration-700" />
                       ) : (
                         <div className="absolute inset-0 bg-gradient-to-br from-copper/25 via-slate-panel to-maroon/20 grid-bg group-hover:scale-105 transition-transform duration-700"></div>
                       )}
@@ -366,7 +406,7 @@ export default function BlogPostClient({
                     </div>
                     <div className="p-5">
                       <h4 className="font-display text-lg text-brass-light mb-2 group-hover:text-brass transition-colors line-clamp-2">{rp.title}</h4>
-                      <p className="text-steel text-sm line-clamp-2">{rp.content.replace(/[#*_>`]/g, "").slice(0, 100)}...</p>
+                      <p className="text-steel text-sm line-clamp-2">{rp.excerpt || rp.content.replace(/[#*_>`]/g, "").slice(0, 100)}...</p>
                     </div>
                   </TiltCard>
                 </Link>

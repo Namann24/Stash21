@@ -23,7 +23,7 @@ function TraceLines() {
       {lines.map((l, i) => (
         <mesh key={i} position={[l.x, 0.077, l.z]} rotation={[-Math.PI / 2, 0, l.rot]}>
           <planeGeometry args={[0.03, l.len]} />
-          <meshStandardMaterial color="#FBE2C2" metalness={1} roughness={0.15} emissive="#C9A24B" emissiveIntensity={0.15} />
+          <meshStandardMaterial color="#c9a24b" metalness={1} roughness={0.15} emissive="#b87333" emissiveIntensity={0.2} />
         </mesh>
       ))}
     </>
@@ -45,7 +45,7 @@ function Chips() {
     <>
       {chips.map((c, i) => (
         <RoundedBox key={i} args={[c.s, c.h, c.s]} radius={0.015} position={[c.x, c.h / 2 + 0.08, c.z]}>
-          <meshStandardMaterial color="#0d0d10" metalness={0.7} roughness={0.35} />
+          <meshStandardMaterial color="#1a1512" metalness={0.8} roughness={0.25} />
         </RoundedBox>
       ))}
     </>
@@ -148,7 +148,7 @@ function Board({ scrollProgress, mouse }: { scrollProgress: React.MutableRefObje
   return (
     <group ref={group}>
       <RoundedBox args={[3.3, 0.16, 2.1]} radius={0.07} smoothness={6} position={[0, 0, 0]} castShadow receiveShadow>
-        <meshPhysicalMaterial color="#1A1A1F" metalness={0.4} roughness={0.4} clearcoat={0.7} clearcoatRoughness={0.25} />
+        <meshPhysicalMaterial color="#141210" metalness={0.6} roughness={0.3} clearcoat={0.9} clearcoatRoughness={0.15} />
       </RoundedBox>
 
       <RoundedBox args={[3.36, 0.02, 2.16]} radius={0.07} position={[0, -0.09, 0]}>
@@ -163,7 +163,7 @@ function Board({ scrollProgress, mouse }: { scrollProgress: React.MutableRefObje
       </RoundedBox>
       <mesh position={[0, 0.22, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.28, 0.32, 32]} />
-        <meshStandardMaterial color="#C9A24B" metalness={1} roughness={0.1} emissive="#C9A24B" emissiveIntensity={0.3} />
+        <meshStandardMaterial color="#b87333" metalness={1} roughness={0.1} emissive="#c9a24b" emissiveIntensity={0.4} />
       </mesh>
 
       {Array.from({ length: 12 }).map((_, i) => (
@@ -179,7 +179,7 @@ function Board({ scrollProgress, mouse }: { scrollProgress: React.MutableRefObje
 
       <mesh ref={ring} position={[0, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[1.35, 0.008, 8, 64]} />
-        <meshStandardMaterial color="#82553E" metalness={1} roughness={0.2} emissive="#B87333" emissiveIntensity={0.2} />
+        <meshStandardMaterial color="#c9a24b" metalness={1} roughness={0.1} emissive="#b87333" emissiveIntensity={0.3} />
       </mesh>
 
       <mesh ref={led1} position={[1.25, 0.16, 0.75]}>
@@ -229,15 +229,15 @@ export default function ArduinoScene({ scrollProgress }: { scrollProgress: React
         gl={{ antialias: true, alpha: true }}
         style={{ width: "100%", height: "100%" }}
       >
-        <ambientLight intensity={0.35} />
-        <fog attach="fog" args={["#0A0908", 4, 12]} />
-        <directionalLight position={[4, 5, 3]} intensity={1.6} color="#FBE2C2" castShadow />
-        <pointLight position={[-3, -2, -2]} intensity={1} color="#B87333" />
-        <pointLight position={[2, -1, 2]} intensity={0.6} color="#5A1220" />
-        <pointLight position={[0, 1, -4]} intensity={0.7} color="#8B6FE8" />
-        <spotLight position={[0, 4, 0]} angle={0.4} penumbra={1} intensity={0.8} color="#C9A24B" />
+        <ambientLight intensity={0.45} />
+        <fog attach="fog" args={["#0a0908", 4, 12]} />
+        <directionalLight position={[4, 5, 3]} intensity={1.8} color="#fbe2c2" castShadow />
+        <pointLight position={[-3, -2, -2]} intensity={1.2} color="#c9a24b" />
+        <pointLight position={[2, -1, 2]} intensity={0.8} color="#b87333" />
+        <pointLight position={[0, 1, -4]} intensity={0.7} color="#5a1220" />
+        <spotLight position={[0, 4, 0]} angle={0.4} penumbra={1} intensity={1} color="#fbe2c2" />
         <Environment preset="city" resolution={128} />
-        <Sparkles count={22} scale={[7, 5, 5]} size={1.6} speed={0.3} color="#FBE2C2" opacity={0.45} />
+        <Sparkles count={30} scale={[7, 5, 5]} size={2} speed={0.2} color="#c9a24b" opacity={0.6} />
 
         <Float speed={1.3} rotationIntensity={0.2} floatIntensity={0.45}>
           <Board scrollProgress={scrollProgress} mouse={mouse} />

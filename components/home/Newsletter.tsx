@@ -26,15 +26,15 @@ export default function Newsletter() {
   };
 
   return (
-    <section className="py-24 relative overflow-hidden">
-      <div className="absolute inset-0 bg-metal-gradient opacity-30" />
+    <section className="py-16 relative overflow-hidden">
+      <div className="absolute inset-0 bg-metal-gradient opacity-20" />
       <div className="max-w-4xl mx-auto px-6 relative z-10 text-center">
         <ScrollReveal>
-          <div className="card-glass rounded-3xl p-10 md:p-16 glow-border-strong relative overflow-hidden">
+          <div className="card-glass rounded-3xl p-8 md:p-10 glow-border-strong relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-copper/10 to-transparent" />
             <div className="relative z-10">
-              <h2 className="font-display text-3xl md:text-5xl text-brass mb-4">Stay in the Loop</h2>
-              <p className="text-steel mb-10 max-w-xl mx-auto">
+              <h2 className="font-display text-2xl md:text-4xl text-brass mb-4">Stay in the Loop</h2>
+              <p className="text-steel mb-6 max-w-xl mx-auto">
                 Get the latest hardware teardowns, IoT tutorials, and firmware experiments delivered straight to your inbox. No spam, just pure maker fuel.
               </p>
 
@@ -45,7 +45,7 @@ export default function Newsletter() {
                   className="flex items-center justify-center gap-3 text-brass-light bg-copper/10 py-4 px-6 rounded-full w-fit mx-auto border border-copper/30"
                 >
                   <CheckCircle2 className="w-5 h-5 text-green-400" />
-                  You're on the list!
+                  You&apos;re on the list!
                 </motion.div>
               ) : (
                 <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto relative">

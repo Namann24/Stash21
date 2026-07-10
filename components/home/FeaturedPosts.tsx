@@ -41,10 +41,10 @@ export default function FeaturedPosts({ posts }: { posts: Post[] }) {
             whileHover={{ y: -8 }}
           >
             <Link href={`/blog/${post.slug}`} data-cursor-hover>
-              <TiltCard className="hud-corners group block card-glass rounded-2xl overflow-hidden hover:glow-border-strong transition-shadow duration-300">
+              <TiltCard className="hud-corners group block card-glass scan-card holo-card rounded-2xl overflow-hidden hover:glow-border-strong transition-shadow duration-300">
                 <div className="h-48 bg-metal-gradient relative overflow-hidden">
                   {post.cover_image ? (
-                    <Image src={post.cover_image} alt={post.title} fill className="object-cover group-hover:scale-110 transition-transform duration-700" />
+                    <Image src={post.cover_image} alt={post.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover group-hover:scale-110 transition-transform duration-700" />
                   ) : (
                     <div className="absolute inset-0 bg-gradient-to-br from-copper/25 via-slate-panel to-maroon/20 grid-bg group-hover:scale-105 transition-transform duration-700">
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -59,9 +59,9 @@ export default function FeaturedPosts({ posts }: { posts: Post[] }) {
                 </div>
                 <div className="p-6">
                   <h3 className="font-display text-lg text-brass-light mb-2 group-hover:text-brass transition-colors">{post.title}</h3>
-                  <p className="text-steel text-sm line-clamp-2 mb-3">{post.content.replace(/[#*_>`]/g, "").slice(0, 120)}...</p>
+                  <p className="text-steel text-sm line-clamp-2 mb-3">{post.excerpt || post.content.replace(/[#*_>`]/g, "").slice(0, 120)}...</p>
                   <div className="flex items-center gap-1 text-xs text-steel">
-                    <Clock className="w-3 h-3" /> 5 min read
+                    <Clock className="w-3 h-3" /> {Math.max(1, Math.ceil(post.content.split(/\s+/).length / 200))} min read
                   </div>
                 </div>
               </TiltCard>
