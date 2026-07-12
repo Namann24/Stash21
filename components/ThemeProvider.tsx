@@ -7,11 +7,13 @@ type Theme = "dark" | "light";
 type ThemeContextType = {
   theme: Theme;
   toggle: () => void;
+  mounted: boolean;
 };
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: "dark",
   toggle: () => {},
+  mounted: false,
 });
 
 export const useTheme = () => useContext(ThemeContext);
@@ -56,11 +58,11 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
     setTheme(prev => prev === "dark" ? "light" : "dark");
     flashTimer.current = setTimeout(() => {
       html.classList.remove("theme-transitioning");
-    }, 380);
+    }, 450);
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggle }}>
+    <ThemeContext.Provider value={{ theme, toggle, mounted }}>
       {children}
     </ThemeContext.Provider>
   );

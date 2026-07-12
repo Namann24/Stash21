@@ -4,6 +4,7 @@ import BackgroundFX from "@/components/BackgroundFX";
 import AmbientGlow from "@/components/AmbientGlow";
 import CustomCursor from "@/components/CustomCursor";
 import ThemeProvider from "@/components/ThemeProvider";
+import FloatingGears from "@/components/FloatingGears";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://stash21.com"),
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark">
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
         {/* Prevent flash of unstyled theme — runs before paint */}
         <script
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="noise-overlay" />
           <BackgroundFX />
           <AmbientGlow />
+          <FloatingGears />
           <CustomCursor />
           {children}
         </ThemeProvider>

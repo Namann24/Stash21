@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import type { Post } from "@/lib/types";
@@ -9,6 +9,16 @@ import TiltCard from "@/components/TiltCard";
 import ScrollReveal from "@/components/ScrollReveal";
 import InfiniteScroll from "@/components/InfiniteScroll";
 import { Filter, Search, Loader2 } from "lucide-react";
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 30, scale: 0.97 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
+  },
+};
 
 export default function BlogListClient({ posts: initialPosts }: { posts: Post[] }) {
   const [posts, setPosts] = useState<Post[]>(initialPosts);
@@ -73,31 +83,45 @@ export default function BlogListClient({ posts: initialPosts }: { posts: Post[] 
         anything that sparks your curiosity.
       </motion.p>
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.5 }}
+        className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10"
+      >
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 mr-2 text-brass">
             <Filter className="w-4 h-4" />
             <span className="text-sm font-medium">Filter:</span>
           </div>
-        {categories.map((c) => (
-          <button
-            key={c}
-            onClick={() => {
-              setFilter(c);
-              setPage(1);
-              setPosts(initialPosts);
-              setHasMore(true);
-            }}
-            className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${
-              filter === c
-                ? "bg-metal-gradient text-ink border-transparent"
-                : "border-copper/25 text-steel hover:text-brass-light"
-            }`}
-            data-cursor-hover
-          >
-            {c}
-          </button>
-        ))}
+          {categories.map((c) => (
+            <motion.button
+              key={c}
+              onClick={() => {
+                setFilter(c);
+                setPage(1);
+                setPosts(initialPosts);
+                setHasMore(true);
+              }}
+              className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all relative ${
+                filter === c
+                  ? "border-transparent text-ink"
+                  : "border-copper/25 text-steel hover:text-brass-light"
+              }`}
+              data-cursor-hover
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              {filter === c && (
+                <motion.span
+                  layoutId="blog-filter-pill"
+                  className="absolute inset-0 bg-metal-gradient rounded-full -z-10"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10">{c}</span>
+            </motion.button>
+          ))}
         </div>
         
         <div className="relative w-full md:w-64 shrink-0">
@@ -114,57 +138,71 @@ export default function BlogListClient({ posts: initialPosts }: { posts: Post[] 
               setHasMore(true);
             }}
             placeholder="Search projects..."
-            className="w-full bg-black/30 border border-copper/20 rounded-full pl-10 pr-4 py-2 text-sm text-brass-light placeholder:text-steel/50 focus:outline-none focus:border-copper transition-colors"
+            className="w-full border border-copper/20 rounded-full pl-10 pr-4 py-2 text-sm placeholder:text-steel/50 focus:outline-none focus:border-copper transition-colors"
+            style={{
+              backgroundColor: "var(--input-bg)",
+              color: "var(--text-primary)",
+            }}
           />
         </div>
-      </div>
+      </motion.div>
 
       {filteredPosts.length === 0 ? (
-        <p className="text-steel">No posts found for this category.</p>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-steel"
+        >
+          No posts found for this category.
+        </motion.p>
       ) : (
         <>
           <div className="grid md:grid-cols-3 gap-7">
-            {filteredPosts.map((post, i) => (
-              <motion.div
-                key={post.id}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.04, duration: 0.5 }}
-                whileHover={{ y: -8 }}
-              >
-                <Link href={`/blog/${post.slug}`} data-cursor-hover>
-                  <TiltCard className="hud-corners group block card-glass rounded-2xl overflow-hidden hover:glow-border-strong transition-shadow duration-300 h-full">
-                    <div className="h-48 bg-metal-gradient relative overflow-hidden">
-                      {post.cover_image ? (
-                        <Image src={post.cover_image} alt={post.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover group-hover:scale-110 transition-transform duration-700" />
-                      ) : (
-                        <div className="absolute inset-0 bg-gradient-to-br from-copper/25 via-slate-panel to-maroon/20 grid-bg group-hover:scale-105 transition-transform duration-700">
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="font-display text-5xl metal-text opacity-30">21</span>
+            <AnimatePresence mode="popLayout">
+              {filteredPosts.map((post, i) => (
+                <motion.div
+                  key={post.id}
+                  variants={cardVariants}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true }}
+                  whileHover={{ y: -8 }}
+                  transition={{ delay: i * 0.04, type: "spring", stiffness: 300, damping: 20 }}
+                  layout
+                >
+                  <Link href={`/blog/${post.slug}`} data-cursor-hover>
+                    <TiltCard className="hud-corners group block card-glass rounded-2xl overflow-hidden hover:glow-border-strong transition-shadow duration-300 h-full">
+                      <div className="h-48 bg-metal-gradient relative overflow-hidden">
+                        {post.cover_image ? (
+                          <Image src={post.cover_image} alt={post.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover group-hover:scale-110 transition-transform duration-700" />
+                        ) : (
+                          <div className="absolute inset-0 bg-gradient-to-br from-copper/25 via-slate-panel to-maroon/20 grid-bg group-hover:scale-105 transition-transform duration-700">
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="font-display text-5xl metal-text opacity-30">21</span>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-ink/80 to-transparent" />
-                      <span className="absolute top-3 left-3 text-xs font-mono bg-ink/70 text-brass px-3 py-1 rounded-full border border-copper/40 backdrop-blur-sm">
-                        {post.category}
-                      </span>
-                    </div>
-                    <div className="p-6">
-                      <h3 className="font-display text-lg text-brass-light mb-2 group-hover:text-brass transition-colors">{post.title}</h3>
-                      <p className="text-steel text-sm line-clamp-2">{post.excerpt || post.content.replace(/[#*_>`]/g, "").slice(0, 120)}...</p>
-                      <div className="flex gap-2 mt-4 flex-wrap">
-                        {post.tags?.slice(0, 3).map((tag) => (
-                          <span key={tag} className="text-[10px] font-mono text-steel border border-steel/30 rounded-full px-2 py-0.5">
-                            #{tag}
-                          </span>
-                        ))}
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-ink/80 to-transparent" />
+                        <span className="absolute top-3 left-3 text-xs font-mono bg-ink/70 text-brass px-3 py-1 rounded-full border border-copper/40 backdrop-blur-sm">
+                          {post.category}
+                        </span>
                       </div>
-                    </div>
-                  </TiltCard>
-                </Link>
-              </motion.div>
-            ))}
+                      <div className="p-6">
+                        <h3 className="font-display text-lg text-brass-light mb-2 group-hover:text-brass transition-colors">{post.title}</h3>
+                        <p className="text-steel text-sm line-clamp-2">{post.excerpt || post.content.replace(/[#*_>`]/g, "").slice(0, 120)}...</p>
+                        <div className="flex gap-2 mt-4 flex-wrap">
+                          {post.tags?.slice(0, 3).map((tag) => (
+                            <span key={tag} className="text-[10px] font-mono text-steel border border-steel/30 rounded-full px-2 py-0.5">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </TiltCard>
+                  </Link>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
           <InfiniteScroll onLoadMore={loadMore} loading={loading} hasMore={hasMore} />
         </>

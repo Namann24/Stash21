@@ -3,21 +3,51 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useMotionValueEvent, useScroll } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+
+const navVariants = {
+  hidden: { y: -30, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+  },
+};
+
+const mobileMenuVariants = {
+  closed: {
+    height: 0,
+    opacity: 0,
+    transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+  },
+  open: {
+    height: "auto",
+    opacity: 1,
+    transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number], staggerChildren: 0.06, delayChildren: 0.1 },
+  },
+};
+
+const mobileLinkVariants = {
+  closed: { opacity: 0, x: -24, filter: "blur(4px)" },
+  open: {
+    opacity: 1,
+    x: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+  },
+};
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
+  const { scrollY } = useScroll();
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 16);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  useMotionValueEvent(scrollY, "change", (latest) => {
+    setScrolled(latest > 16);
+  });
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -33,13 +63,23 @@ export default function Navbar() {
   return (
     <header className="main-navbar fixed top-0 left-0 right-0 z-50 flex justify-center pt-3 px-4">
       <motion.nav
-        initial={{ y: -30, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        variants={navVariants}
+        initial="hidden"
+        animate="visible"
         className={`nav-container ${scrolled ? "nav-scrolled" : "nav-top"}`}
       >
         {/* Animated border glow — only visible when scrolled */}
-        {scrolled && <span className="nav-glow-border" />}
+        <AnimatePresence>
+          {scrolled && (
+            <motion.span
+              className="nav-glow-border"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+            />
+          )}
+        </AnimatePresence>
 
         {/* Inner shine line */}
         <span className="nav-shine" />
@@ -48,7 +88,8 @@ export default function Navbar() {
         <Link href="/" className="flex items-center gap-2.5 group shrink-0 relative z-10" data-cursor-hover>
           <motion.div
             className="relative w-9 h-9"
-            whileHover={{ scale: 1.1 }}
+            whileHover={{ scale: 1.12, rotate: 3 }}
+            whileTap={{ scale: 0.95 }}
             transition={{ type: "spring", stiffness: 400, damping: 15 }}
           >
             <Image
@@ -61,9 +102,22 @@ export default function Navbar() {
               loading="eager"
             />
             {/* Logo glow ring on hover */}
-            <span className="absolute inset-[-4px] rounded-full border border-copper/0 group-hover:border-copper/30 transition-all duration-500 group-hover:shadow-[0_0_20px_rgba(201,162,75,0.25)]" />
+            <motion.span
+              className="absolute inset-[-4px] rounded-full border border-copper/0"
+              whileHover={{
+                borderColor: "rgba(201,162,75,0.35)",
+                boxShadow: "0 0 24px rgba(201,162,75,0.30)",
+              }}
+              transition={{ duration: 0.3 }}
+            />
           </motion.div>
-          <span className="font-display text-xl tracking-[0.15em] metal-text">STASH21</span>
+          <motion.span
+            className="font-display text-xl tracking-[0.15em] metal-text"
+            whileHover={{ letterSpacing: "0.2em" }}
+            transition={{ duration: 0.3 }}
+          >
+            STASH21
+          </motion.span>
         </Link>
 
         {/* Desktop navigation — pill container */}
@@ -87,7 +141,12 @@ export default function Navbar() {
                 )}
                 {/* Hover gradient underline for non-active */}
                 {!active && (
-                  <span className="absolute bottom-1 left-3 right-3 h-[2px] bg-gradient-to-r from-circuit via-brass to-violet rounded-full scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
+                  <motion.span
+                    className="absolute bottom-1 left-3 right-3 h-[2px] bg-gradient-to-r from-circuit via-brass to-violet rounded-full origin-left"
+                    initial={{ scaleX: 0 }}
+                    whileHover={{ scaleX: 1 }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  />
                 )}
                 <span className={`relative z-10 transition-colors duration-300 ${
                   active
@@ -104,66 +163,64 @@ export default function Navbar() {
         {/* Right side — theme toggle + admin */}
         <div className="hidden md:flex items-center gap-3 relative z-10">
           <ThemeToggle />
-          <Link
-            href="/admin"
-            className="nav-admin-btn"
-            data-cursor-hover
-          >
-            <span className="nav-admin-btn-border" />
-            <span className="relative z-10">Admin</span>
-          </Link>
+          <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }}>
+            <Link
+              href="/admin"
+              className="nav-admin-btn"
+              data-cursor-hover
+            >
+              <span className="nav-admin-btn-border" />
+              <span className="relative z-10">Admin</span>
+            </Link>
+          </motion.div>
         </div>
 
         {/* Mobile hamburger */}
-        <button
+        <motion.button
           className="md:hidden text-brass relative z-10"
           onClick={() => setOpen(!open)}
           aria-label="Toggle menu"
+          whileTap={{ scale: 0.9 }}
         >
           <AnimatePresence mode="wait" initial={false}>
             {open ? (
               <motion.span
                 key="close"
-                initial={{ rotate: -90, opacity: 0 }}
-                animate={{ rotate: 0, opacity: 1 }}
-                exit={{ rotate: 90, opacity: 0 }}
-                transition={{ duration: 0.2 }}
+                initial={{ rotate: -90, opacity: 0, scale: 0.8 }}
+                animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                exit={{ rotate: 90, opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
               >
                 <X className="w-5 h-5" />
               </motion.span>
             ) : (
               <motion.span
                 key="menu"
-                initial={{ rotate: 90, opacity: 0 }}
-                animate={{ rotate: 0, opacity: 1 }}
-                exit={{ rotate: -90, opacity: 0 }}
-                transition={{ duration: 0.2 }}
+                initial={{ rotate: 90, opacity: 0, scale: 0.8 }}
+                animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                exit={{ rotate: -90, opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
               >
                 <Menu className="w-5 h-5" />
               </motion.span>
             )}
           </AnimatePresence>
-        </button>
+        </motion.button>
       </motion.nav>
 
       {/* Mobile menu */}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            variants={mobileMenuVariants}
+            initial="closed"
+            animate="open"
+            exit="closed"
             className="nav-mobile-menu"
           >
             <div className="p-5 flex flex-col gap-1">
-              {links.map((l, i) => (
-                <motion.div
-                  key={l.href}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.08, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                >
+              {links.map((l) => (
+                <motion.div key={l.href} variants={mobileLinkVariants}>
                   <Link
                     href={l.href}
                     onClick={() => setOpen(false)}
@@ -173,15 +230,13 @@ export default function Navbar() {
                         : "text-steel hover:text-brass-light hover:bg-white/5"
                     }`}
                   >
-                    {l.label}
+                    <motion.span whileHover={{ x: 4 }} transition={{ duration: 0.2 }}>
+                      {l.label}
+                    </motion.span>
                   </Link>
                 </motion.div>
               ))}
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: links.length * 0.08, duration: 0.3 }}
-              >
+              <motion.div variants={mobileLinkVariants}>
                 <div className="h-px bg-gradient-to-r from-transparent via-copper/30 to-transparent my-2" />
                 <div className="flex items-center justify-between px-4 py-2">
                   <Link

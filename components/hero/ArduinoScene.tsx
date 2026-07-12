@@ -236,7 +236,25 @@ export default function ArduinoScene({ scrollProgress }: { scrollProgress: React
         <pointLight position={[2, -1, 2]} intensity={0.8} color="#b87333" />
         <pointLight position={[0, 1, -4]} intensity={0.7} color="#5a1220" />
         <spotLight position={[0, 4, 0]} angle={0.4} penumbra={1} intensity={1} color="#fbe2c2" />
-        <Environment preset="city" resolution={128} />
+        {/* Dynamic environment map to run completely offline without downloading CDN HDR assets */}
+        <Environment resolution={128}>
+          <mesh scale={100}>
+            <sphereGeometry />
+            <meshBasicMaterial color="#080706" side={THREE.BackSide} />
+          </mesh>
+          <mesh position={[3, 5, -3]} scale={4}>
+            <sphereGeometry />
+            <meshBasicMaterial color="#c9a24b" />
+          </mesh>
+          <mesh position={[-3, 5, 3]} scale={5}>
+            <sphereGeometry />
+            <meshBasicMaterial color="#4dd8e8" />
+          </mesh>
+          <mesh position={[0, -5, 0]} scale={6}>
+            <sphereGeometry />
+            <meshBasicMaterial color="#1f1812" />
+          </mesh>
+        </Environment>
         <Sparkles count={30} scale={[7, 5, 5]} size={2} speed={0.2} color="#c9a24b" opacity={0.6} />
 
         <Float speed={1.3} rotationIntensity={0.2} floatIntensity={0.45}>

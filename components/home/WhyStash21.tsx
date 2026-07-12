@@ -1,5 +1,5 @@
 "use client";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import { ShieldCheck, Users, Sparkles } from "lucide-react";
 import TiltCard from "@/components/TiltCard";
 import ScrollReveal from "@/components/ScrollReveal";
@@ -16,32 +16,97 @@ const accentMap: Record<string, string> = {
   violet: "text-violet border-violet/40"
 };
 
+const containerVariants: Variants = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.15 },
+  },
+};
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 40, scale: 0.95 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.65, ease: [0.16, 1, 0.3, 1] },
+  },
+};
+
+const iconVariants: Variants = {
+  hidden: { opacity: 0, scale: 0, rotate: -180 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    rotate: 0,
+    transition: {
+      type: "spring",
+      stiffness: 260,
+      damping: 20,
+      delay: 0.15,
+    },
+  },
+};
+
 export default function WhyStash21() {
   return (
-    <section className="max-w-7xl mx-auto px-6 py-16 relative">
+    <section className="max-w-7xl mx-auto px-6 py-16 relative section-glow">
       <ScrollReveal>
         <p className="hud-label text-circuit text-center mb-3">[ WHY.STASH21 ]</p>
         <h2 className="font-display text-3xl md:text-5xl metal-text text-center mb-10 mx-auto block w-fit">
           The Stash21 Difference
         </h2>
       </ScrollReveal>
-      <div className="grid md:grid-cols-3 gap-8">
-        {points.map((p, i) => (
-          <ScrollReveal key={p.title} delay={i * 150}>
+      <motion.div
+        className="grid md:grid-cols-3 gap-8"
+        variants={containerVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.2 }}
+      >
+        {points.map((p) => (
+          <motion.div key={p.title} variants={cardVariants}>
             <TiltCard className="hud-corners text-center px-6 card-glass scan-card border-flow rounded-2xl py-8 hover:glow-border-strong transition-shadow duration-300 h-full">
               <motion.div
+                variants={iconVariants}
                 whileHover={{ rotate: 360, scale: 1.1 }}
                 transition={{ duration: 0.6 }}
-                className={`w-16 h-16 mx-auto mb-6 rounded-full border-2 flex items-center justify-center shadow-lg bg-black/30 sonar-ping ${accentMap[p.accent]}`}
+                className={`w-16 h-16 mx-auto mb-6 rounded-full border-2 flex items-center justify-center shadow-lg bg-black/30 ${accentMap[p.accent]}`}
               >
-                <p.icon className="w-8 h-8" />
+                {/* Framer Motion ring pulse */}
+                <motion.span
+                  className="absolute inset-0 rounded-full border border-current"
+                  animate={{
+                    scale: [1, 1.4, 1.4],
+                    opacity: [0.6, 0, 0],
+                  }}
+                  transition={{
+                    duration: 2.5,
+                    repeat: Infinity,
+                    ease: "easeOut",
+                  }}
+                />
+                <motion.span
+                  className="absolute inset-0 rounded-full border border-current"
+                  animate={{
+                    scale: [1, 1.4, 1.4],
+                    opacity: [0.6, 0, 0],
+                  }}
+                  transition={{
+                    duration: 2.5,
+                    repeat: Infinity,
+                    ease: "easeOut",
+                    delay: 1.25,
+                  }}
+                />
+                <p.icon className="w-8 h-8 relative z-10" />
               </motion.div>
               <h3 className="font-display text-xl text-brass mb-3">{p.title}</h3>
               <p className="text-steel text-sm leading-relaxed">{p.desc}</p>
             </TiltCard>
-          </ScrollReveal>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </section>
   );
 }

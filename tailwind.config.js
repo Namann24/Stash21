@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: ['selector', '[data-theme="dark"]'],
   content: [
     "./app/**/*.{ts,tsx,js,jsx}",
     "./components/**/*.{ts,tsx,js,jsx}",
@@ -31,9 +32,26 @@ module.exports = {
         "metal-gradient": "linear-gradient(135deg, #F3DFA8 0%, #E8CE8C 25%, #C9A24B 55%, #8A4B25 100%)"
       },
       animation: {
-        shimmer:  "shimmer 6s ease-in-out infinite",
-        marquee:  "marquee 28s linear infinite",
-        aurora:   "aurora-spin 22s linear infinite"
+        shimmer:       "shimmer 6s ease-in-out infinite",
+        marquee:       "marquee 28s linear infinite",
+        aurora:        "aurora-spin 22s linear infinite",
+        "gear-spin":   "gear-spin 20s linear infinite",
+        "gear-spin-r": "gear-spin-reverse 16s linear infinite",
+        "copper-pulse":"copper-pulse 3s ease-in-out infinite",
+      },
+      keyframes: {
+        "gear-spin": {
+          "from": { transform: "rotate(0deg)" },
+          "to":   { transform: "rotate(360deg)" }
+        },
+        "gear-spin-reverse": {
+          "from": { transform: "rotate(360deg)" },
+          "to":   { transform: "rotate(0deg)" }
+        },
+        "copper-pulse": {
+          "0%, 100%": { opacity: "0.4" },
+          "50%":      { opacity: "0.7" }
+        }
       }
     }
   },

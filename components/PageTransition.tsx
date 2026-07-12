@@ -7,24 +7,28 @@ import { Variants } from "framer-motion";
 const pageVariants: Variants = {
   initial: {
     opacity: 0,
-    y: 12,
-    filter: "blur(4px)",
+    y: 18,
+    filter: "blur(6px)",
+    scale: 0.99,
   },
   enter: {
     opacity: 1,
     y: 0,
     filter: "blur(0px)",
+    scale: 1,
     transition: {
-      duration: 0.35,
+      duration: 0.5,
       ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+      staggerChildren: 0.05,
     },
   },
   exit: {
     opacity: 0,
-    y: -6,
-    filter: "blur(2px)",
+    y: -10,
+    filter: "blur(3px)",
+    scale: 0.995,
     transition: {
-      duration: 0.2,
+      duration: 0.25,
       ease: "easeIn",
     },
   },
@@ -40,6 +44,7 @@ export default function PageTransition({ children }: { children: React.ReactNode
         initial="initial"
         animate="enter"
         exit="exit"
+        style={{ willChange: "transform, opacity, filter" }}
       >
         {children}
       </motion.div>

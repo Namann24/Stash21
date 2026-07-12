@@ -32,6 +32,12 @@ import AdminSidebar, { type AdminSection } from "@/components/admin/AdminSidebar
 
 type AdminPost = Post & { commentsCount?: number; reactions?: number };
 type CommentWithPost = Comment & { posts?: { title: string } };
+type DeletePrompt = {
+  kind: "post" | "comment";
+  id: string;
+  title: string;
+  message: string;
+};
 
 const shortNumber = (value: number) =>
   new Intl.NumberFormat("en", { notation: value >= 10000 ? "compact" : "standard" }).format(value);
@@ -73,6 +79,7 @@ export default function AdminDashboard() {
   const [postSearch, setPostSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [deletePrompt, setDeletePrompt] = useState<DeletePrompt | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -86,6 +93,17 @@ export default function AdminDashboard() {
       loadData();
     })();
   }, [router]);
+
+  useEffect(() => {
+    if (!deletePrompt) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDeletePrompt(null);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [deletePrompt]);
 
   const loadData = async () => {
     setRefreshing(true);
@@ -187,13 +205,35 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteComment = async (id: string) => {
-    if (!window.confirm("Delete this comment? This cannot be undone.")) return;
-    setComments((prev) => prev.filter((c) => c.id !== id));
+  const handleDeleteComment = (id: string) => {
+    setDeletePrompt({
+      kind: "comment",
+      id,
+      title: "Delete Comment?",
+      message: "This comment will be removed from the dashboard and cannot be restored."
+    });
+  };
+
+  const confirmDeletePrompt = async () => {
+    if (!deletePrompt) return;
+    const prompt = deletePrompt;
+    setDeletePrompt(null);
+
+    if (prompt.kind === "comment") {
+      setComments((prev) => prev.filter((c) => c.id !== prompt.id));
+      try {
+        await supabase.from("comments").delete().eq("id", prompt.id);
+      } catch (err) {
+        logError("AdminDashboard.deleteComment", err);
+      }
+      return;
+    }
+
+    setPosts((prev) => prev.filter((p) => p.id !== prompt.id));
     try {
-      await supabase.from("comments").delete().eq("id", id);
+      await supabase.from("posts").delete().eq("id", prompt.id);
     } catch (err) {
-      logError("AdminDashboard.deleteComment", err);
+      logError("AdminDashboard.deletePost", err);
     }
   };
 
@@ -202,14 +242,13 @@ export default function AdminDashboard() {
     router.push("/admin");
   };
 
-  const handleDeletePost = async (id: string) => {
-    if (!window.confirm("Delete this post permanently? This cannot be undone.")) return;
-    setPosts((prev) => prev.filter((p) => p.id !== id));
-    try {
-      await supabase.from("posts").delete().eq("id", id);
-    } catch (err) {
-      logError("AdminDashboard.deletePost", err);
-    }
+  const handleDeletePost = (post: Post) => {
+    setDeletePrompt({
+      kind: "post",
+      id: post.id,
+      title: "Delete Post Permanently?",
+      message: `"${post.title}" will be removed from your posts. This action cannot be undone.`
+    });
   };
 
   const handleNewPost = () => {
@@ -278,61 +317,62 @@ export default function AdminDashboard() {
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 px-4 md:px-8 py-4 border-b border-copper/10 bg-slate-panel/70 backdrop-blur-xl">
-          <div className="flex items-center gap-3 min-h-0 relative">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 px-3 sm:px-4 md:px-8 py-3 md:py-4 border-b border-copper/10 bg-white/80 dark:bg-slate-panel/70 backdrop-blur-xl">
+          <div className="flex items-center gap-2 sm:gap-3 min-h-0 relative">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="lg:hidden p-2 -ml-2 text-steel hover:text-brass-light transition-colors"
+              className="lg:hidden p-2 -ml-2 rounded-xl text-stone-600 dark:text-steel hover:text-brass-dark dark:hover:text-brass-light hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              aria-label="Open menu"
             >
               <Menu className="w-5 h-5" />
             </button>
             {/* Subtle glow behind title */}
             <div className="absolute -inset-4 bg-brass/10 blur-xl rounded-full opacity-50 pointer-events-none" />
-            <h1 className="font-display text-2xl md:text-3xl text-brass-light truncate relative z-10">{meta.title}</h1>
-            <p className="text-sm text-steel truncate hidden sm:block relative z-10">{meta.subtitle}</p>
+            <h1 className="font-display text-xl sm:text-2xl md:text-3xl text-brass-dark dark:text-brass-light truncate relative z-10">{meta.title}</h1>
+            <p className="text-sm text-stone-600 dark:text-steel truncate hidden md:block relative z-10">{meta.subtitle}</p>
           </div>
-          <div className="flex items-center gap-2 md:gap-4 shrink-0">
-            <div className="hidden lg:flex items-center gap-3 pr-4 border-r border-copper/10">
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 shrink-0">
+            <div className="hidden xl:flex items-center gap-3 pr-4 border-r border-copper/10">
               <Link
                 href="/"
-                className="hidden xl:inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-copper/15 text-xs text-steel hover:text-brass-light hover:border-copper/30 transition-all"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-copper/15 text-xs text-stone-600 dark:text-steel hover:text-brass-dark dark:hover:text-brass-light hover:border-copper/30 transition-all"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Back to site
               </Link>
-              <ThemeToggle />
             </div>
+            <ThemeToggle compact />
+            <button
+              type="button"
+              onClick={handleNewPost}
+              className="inline-flex items-center justify-center gap-2 h-9 sm:h-auto px-3 sm:px-4 sm:py-2 rounded-xl btn-primary text-sm font-medium shadow-[0_0_20px_rgba(201,162,75,0.12)] hover:shadow-[0_0_30px_rgba(201,162,75,0.25)] transition-all"
+              aria-label="New post"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">New post</span>
+            </button>
             <button
               type="button"
               onClick={loadData}
               disabled={refreshing}
-              className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl border border-copper/15 text-xs text-steel hover:text-brass-light hover:border-copper/40 hover:bg-black/20 transition-all disabled:opacity-50 bounce-hover"
+              className="flex items-center justify-center gap-2 h-9 sm:h-auto px-3 md:px-4 sm:py-2 rounded-xl border border-copper/15 text-xs text-stone-600 dark:text-steel hover:text-brass-dark dark:hover:text-brass-light hover:border-copper/40 hover:bg-black/5 dark:hover:bg-black/20 transition-all disabled:opacity-50"
+              aria-label="Refresh dashboard"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">{lastUpdated ? `Updated ${lastUpdated}` : "Refresh"}</span>
+              <span className="hidden lg:inline">{lastUpdated ? `Updated ${lastUpdated}` : "Refresh"}</span>
             </button>
-            {section === "posts" && (
-              <button
-                type="button"
-                onClick={handleNewPost}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl btn-primary text-sm font-medium shadow-[0_0_20px_rgba(201,162,75,0.12)] hover:shadow-[0_0_30px_rgba(201,162,75,0.25)] bounce-hover transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">New post</span>
-              </button>
-            )}
           </div>
         </header>
 
         {/* Mobile nav */}
-        <div className="lg:hidden flex gap-1 overflow-x-auto px-4 py-3 border-b border-copper/10 hide-scrollbar">
+        <div className="lg:hidden sticky top-[61px] z-20 flex gap-1 overflow-x-auto px-3 py-2 border-b border-copper/10 bg-white/80 dark:bg-slate-panel/80 backdrop-blur-xl hide-scrollbar">
           {(["overview", "posts", "comments", "feedback", "subscribers"] as AdminSection[]).map((id) => (
             <button
               key={id}
               type="button"
               onClick={() => setSection(id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap capitalize transition-all ${
-                section === id ? "bg-copper/15 text-brass-light border border-copper/25" : "text-steel"
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap capitalize transition-all shrink-0 ${
+                section === id ? "bg-copper/15 text-brass-dark dark:text-brass-light border border-copper/25" : "text-stone-600 dark:text-steel"
               }`}
             >
               {id}
@@ -340,7 +380,7 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+        <main className="flex-1 p-3 sm:p-4 md:p-8 pb-24 lg:pb-8 overflow-y-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={section}
@@ -532,7 +572,7 @@ export default function AdminDashboard() {
                                     </button>
                                       <button
                                         type="button"
-                                        onClick={() => handleDeletePost(post.id)}
+                                        onClick={() => handleDeletePost(post)}
                                         className="admin-icon-btn admin-icon-btn-danger bounce-hover"
                                         aria-label="Delete post"
                                       >
@@ -709,6 +749,73 @@ export default function AdminDashboard() {
           }}
         />
       )}
+
+      <AnimatePresence>
+        {deletePrompt && (
+          <motion.div
+            className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/30 dark:bg-black/65 backdrop-blur-sm px-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setDeletePrompt(null)}
+          >
+            <motion.div
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="dashboard-delete-title"
+              aria-describedby="dashboard-delete-description"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ type: "spring", damping: 26, stiffness: 320 }}
+              className="w-full max-w-md rounded-2xl border border-maroon/25 bg-white/95 dark:bg-slate-panel/95 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.4)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-maroon/25 bg-maroon/10 text-maroon">
+                  <Trash2 className="w-5 h-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="admin-field-label text-stone-600 dark:text-steel mb-2">System Prompt</p>
+                  <h3 id="dashboard-delete-title" className="font-display text-xl text-brass-dark dark:text-brass-light">
+                    {deletePrompt.title}
+                  </h3>
+                  <p id="dashboard-delete-description" className="mt-2 text-sm leading-relaxed text-stone-500 dark:text-steel">
+                    {deletePrompt.message}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletePrompt(null)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 dark:text-steel border border-copper/20 hover:border-copper/35 hover:text-brass-dark dark:hover:text-brass-light transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeletePrompt}
+                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-maroon hover:bg-maroon/90 transition-all"
+                >
+                  Delete {deletePrompt.kind}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="lg:hidden fixed left-0 right-0 bottom-0 z-30 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 bg-gradient-to-t from-white via-white/95 to-white/0 dark:from-slate-panel dark:via-slate-panel/95 dark:to-slate-panel/0 pointer-events-none">
+        <button
+          type="button"
+          onClick={handleNewPost}
+          className="pointer-events-auto w-full flex items-center justify-center gap-2 py-3 rounded-xl btn-primary text-sm font-medium shadow-[0_10px_32px_rgba(0,0,0,0.28)]"
+        >
+          <Plus className="w-4 h-4" /> Create new post
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { Children, isValidElement, useCallback, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeSlug from "rehype-slug";
@@ -9,9 +9,31 @@ import "highlight.js/styles/atom-one-dark.css";
 
 type Props = { content: string };
 
-function CodeBlock({ children, className, ...props }: any) {
+function textFromNode(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textFromNode).join("");
+  if (isValidElement(node)) return textFromNode((node.props as { children?: React.ReactNode }).children);
+  return "";
+}
+
+function normalizeLegacyFigures(markdown: string) {
+  return markdown.replace(
+    /<figure>\s*<img\s+([^>]*?)\/?>\s*<figcaption>([\s\S]*?)<\/figcaption>\s*<\/figure>/gi,
+    (match, attrs: string, caption: string) => {
+      const src = attrs.match(/\bsrc=["']([^"']+)["']/i)?.[1];
+      if (!src) return match;
+
+      const alt = attrs.match(/\balt=["']([^"']*)["']/i)?.[1] || "Image";
+      const cleanCaption = caption.replace(/<[^>]+>/g, "").trim().replace(/"/g, "'");
+      return cleanCaption ? `![${alt}](${src} "${cleanCaption}")` : `![${alt}](${src})`;
+    }
+  );
+}
+
+function CodeBlock({ children, className }: { children: React.ReactNode; className?: string }) {
   const [copied, setCopied] = useState(false);
-  const code = String(children).replace(/\n$/, "");
+  const code = textFromNode(children).replace(/\n$/, "");
+  const language = className?.match(/language-(\w+)/)?.[1];
 
   const handleCopy = useCallback(async () => {
     try {
@@ -29,6 +51,7 @@ function CodeBlock({ children, className, ...props }: any) {
           <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
           <div className="w-3 h-3 rounded-full bg-green-500/80" />
         </div>
+        {language && <span className="mr-auto ml-4 text-[10px] uppercase tracking-[0.18em] text-steel/45">{language}</span>}
         <button
           onClick={handleCopy}
           className="flex items-center gap-1.5 text-[11px] font-mono text-steel/60 hover:text-brass-light transition-colors px-2 py-1 rounded-md hover:bg-white/5"
@@ -39,12 +62,16 @@ function CodeBlock({ children, className, ...props }: any) {
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="p-4 overflow-x-auto text-sm" {...props}>{children}</pre>
+      <pre className="p-4 overflow-x-auto text-sm">
+        <code className={className}>{children}</code>
+      </pre>
     </div>
   );
 }
 
 export default function MarkdownRenderer({ content }: Props) {
+  const normalizedContent = useMemo(() => normalizeLegacyFigures(content), [content]);
+
   return (
     <div className="space-y-6 text-steel leading-relaxed max-w-none prose prose-invert prose-headings:font-display prose-headings:text-brass prose-a:text-brass hover:prose-a:text-brass-light prose-strong:text-brass-light prose-code:text-champagne prose-pre:bg-slate-panel prose-pre:border prose-pre:border-copper/20 prose-pre:p-0 overflow-hidden rounded-lg">
       <ReactMarkdown
@@ -58,18 +85,36 @@ export default function MarkdownRenderer({ content }: Props) {
           ol: ({ node, ...props }) => <ol className="list-decimal pl-6 space-y-2 mb-6" {...props} />,
           li: ({ node, ...props }) => <li className="marker:text-copper/70" {...props} />,
           a: ({ node, ...props }) => <a className="underline decoration-copper/40 underline-offset-4 hover:decoration-brass transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
-          img: ({ src, alt }) => (
-            <img
-              src={src}
-              alt={alt || ""}
-              className="rounded-xl border border-copper/20 my-6 max-w-full h-auto"
-              loading="lazy"
-            />
-          ),
-          pre: ({ node, children, ...props }) => {
-            const codeElement = children as any;
-            const codeString = codeElement?.props?.children?.[0] || "";
-            return <CodeBlock {...codeElement?.props}>{codeString}</CodeBlock>;
+          img: ({ src, alt, title }) => {
+            const [cleanAlt, captionFromAlt] = (alt || "").split("|").map((part) => part.trim());
+            const caption = title || captionFromAlt;
+            const image = (
+              <img
+                src={src}
+                alt={cleanAlt || caption || ""}
+                className="rounded-xl border border-copper/20 max-w-full h-auto"
+                loading="lazy"
+              />
+            );
+
+            return caption ? (
+              <figure className="my-8">
+                {image}
+                <figcaption className="mt-3 text-center text-xs md:text-sm text-steel/70 italic">
+                  {caption}
+                </figcaption>
+              </figure>
+            ) : (
+              <span className="block my-6">{image}</span>
+            );
+          },
+          pre: ({ children }) => {
+            const codeElement = Children.only(children) as any;
+            return isValidElement(codeElement) ? (
+              <CodeBlock className={(codeElement.props as { className?: string }).className}>
+                {(codeElement.props as { children?: React.ReactNode }).children}
+              </CodeBlock>
+            ) : null;
           },
           code: ({ node, inline, className, children, ...props }: any) => {
             return !inline ? (
@@ -84,7 +129,7 @@ export default function MarkdownRenderer({ content }: Props) {
           },
         }}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     </div>
   );

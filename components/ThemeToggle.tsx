@@ -1,109 +1,161 @@
 "use client";
 
-import { useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/components/ThemeProvider";
 
-export default function ThemeToggle() {
-  const { theme, toggle } = useTheme();
-  const trackRef = useRef<HTMLButtonElement>(null);
+export default function ThemeToggle({ compact = false }: { compact?: boolean }) {
+  const { theme, toggle, mounted } = useTheme();
   const isDark = theme === "dark";
+
+  if (!mounted) {
+    return (
+      <div className={`gear-toggle ${compact ? "gear-toggle-compact" : ""}`} aria-hidden="true">
+        <span className="gear-toggle-track">
+          <span className="gear-toggle-track-inner" />
+        </span>
+      </div>
+    );
+  }
 
   return (
     <motion.button
-      ref={trackRef}
       onClick={toggle}
-      whileTap={{ scale: 0.95 }}
+      whileTap={{ scale: 0.92 }}
+      whileHover={{ scale: 1.05 }}
       aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
-      className="pcb-toggle"
+      className={`gear-toggle ${compact ? "gear-toggle-compact" : ""}`}
       data-cursor-hover
     >
-      {/* PCB trace track background */}
-      <span className="pcb-toggle-track">
-        {/* Copper trace lines etched into track */}
-        <span className="pcb-trace pcb-trace-1" />
-        <span className="pcb-trace pcb-trace-2" />
-        <span className="pcb-trace pcb-trace-3" />
+      {/* Track background */}
+      <span className="gear-toggle-track">
+        <span className="gear-toggle-track-inner" />
 
-        {/* Via holes (PCB drill points) */}
-        <span className="pcb-via pcb-via-left" />
-        <span className="pcb-via pcb-via-right" />
+        {/* Active glow behind knob position */}
+        <motion.span
+          className="absolute inset-0 rounded-[16px] pointer-events-none"
+          animate={{
+            background: isDark
+              ? "radial-gradient(circle at 22% 50%, rgba(77,216,232,0.18), transparent 55%)"
+              : "radial-gradient(circle at 78% 50%, rgba(243,223,168,0.28), transparent 55%)"
+          }}
+          transition={{ duration: 0.5 }}
+        />
       </span>
 
-      {/* Active state glow behind track */}
+      {/* Tick marks decoration */}
+      <span className="gear-toggle-ticks" />
+
+      {/* Sliding knob with gear SVG */}
       <motion.span
-        className="pcb-toggle-active-glow"
+        className="gear-toggle-knob"
         animate={{
-          background: isDark
-            ? "radial-gradient(circle at 25% 50%, rgba(77,216,232,0.2), transparent 60%)"
-            : "radial-gradient(circle at 75% 50%, rgba(243,223,168,0.3), transparent 60%)"
-        }}
-        transition={{ duration: 0.5 }}
-      />
-
-      {/* Label icons — etched into the PCB */}
-      <span className="pcb-label pcb-label-left">
-        {/* Moon symbol — crescent */}
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="pcb-label-icon">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </span>
-      <span className="pcb-label pcb-label-right">
-        {/* Sun symbol */}
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="pcb-label-icon">
-          <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.5"/>
-          <line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          <line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          <line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          <line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      </span>
-
-      {/* Sliding knob / component */}
-      <motion.span
-        className="pcb-knob"
-        layout
-        animate={{
-          x: isDark ? 0 : 26,
+          x: isDark ? 0 : compact ? 28 : 36,
         }}
         transition={{
           type: "spring",
-          stiffness: 500,
-          damping: 30,
-          mass: 0.8,
+          stiffness: 400,
+          damping: 28,
+          mass: 0.9,
         }}
       >
-        {/* Knob inner glow */}
+        {/* Knob background */}
         <motion.span
-          className="pcb-knob-glow"
+          className="gear-toggle-knob-inner"
           animate={{
             boxShadow: isDark
-              ? "0 0 12px 2px rgba(77,216,232,0.5), 0 0 24px 4px rgba(77,216,232,0.2), inset 0 0 6px rgba(77,216,232,0.3)"
-              : "0 0 12px 2px rgba(243,223,168,0.6), 0 0 24px 4px rgba(201,162,75,0.25), inset 0 0 6px rgba(243,223,168,0.3)"
+              ? "0 0 14px 3px rgba(77,216,232,0.40), inset 0 0 8px rgba(77,216,232,0.15)"
+              : "0 0 14px 3px rgba(243,223,168,0.50), inset 0 0 8px rgba(243,223,168,0.20)"
           }}
           transition={{ duration: 0.4 }}
         />
 
-        {/* LED indicator dot */}
-        <motion.span
-          className="pcb-led"
-          animate={{
-            backgroundColor: isDark ? "#4DD8E8" : "#F3DFA8",
-            boxShadow: isDark
-              ? "0 0 6px 2px rgba(77,216,232,0.8)"
-              : "0 0 6px 2px rgba(243,223,168,0.8)"
+        {/* Rotating gear border SVG */}
+        <motion.svg
+          className="absolute inset-[-3px] w-[32px] h-[32px]"
+          viewBox="0 0 32 32"
+          animate={{ rotate: isDark ? 0 : 180 }}
+          transition={{
+            type: "spring",
+            stiffness: 200,
+            damping: 20,
+            mass: 1,
           }}
-          transition={{ duration: 0.3 }}
-        />
-      </motion.span>
+        >
+          {/* Gear teeth */}
+          {Array.from({ length: 8 }).map((_, i) => {
+            const angle = (i * 45) * Math.PI / 180;
+            const cx = 16 + Math.cos(angle) * 14;
+            const cy = 16 + Math.sin(angle) * 14;
+            return (
+              <circle
+                key={i}
+                cx={cx}
+                cy={cy}
+                r="2"
+                fill={isDark ? "rgba(77,216,232,0.45)" : "rgba(201,162,75,0.55)"}
+                className="transition-colors duration-300"
+              />
+            );
+          })}
+        </motion.svg>
 
-      {/* Solder pads at ends */}
-      <span className="pcb-pad pcb-pad-left" />
-      <span className="pcb-pad pcb-pad-right" />
+        {/* Sun / Moon icon animated */}
+        <AnimatePresence mode="wait" initial={false}>
+          {isDark ? (
+            <motion.svg
+              key="moon"
+              className="gear-toggle-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              initial={{ rotate: -30, scale: 0, opacity: 0 }}
+              animate={{ rotate: 0, scale: 1, opacity: 1 }}
+              exit={{ rotate: 30, scale: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              <path
+                d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+                stroke="#4DD8E8"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="rgba(77,216,232,0.15)"
+              />
+            </motion.svg>
+          ) : (
+            <motion.svg
+              key="sun"
+              className="gear-toggle-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              initial={{ rotate: 30, scale: 0, opacity: 0 }}
+              animate={{ rotate: 0, scale: 1, opacity: 1 }}
+              exit={{ rotate: -30, scale: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              <circle cx="12" cy="12" r="4" stroke="#C9A24B" strokeWidth="1.5" fill="rgba(201,162,75,0.20)" />
+              {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
+                const rad = (deg * Math.PI) / 180;
+                const x1 = 12 + Math.cos(rad) * 7;
+                const y1 = 12 + Math.sin(rad) * 7;
+                const x2 = 12 + Math.cos(rad) * 9;
+                const y2 = 12 + Math.sin(rad) * 9;
+                return (
+                  <line
+                    key={deg}
+                    x1={x1}
+                    y1={y1}
+                    x2={x2}
+                    y2={y2}
+                    stroke="#C9A24B"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                );
+              })}
+            </motion.svg>
+          )}
+        </AnimatePresence>
+      </motion.span>
     </motion.button>
   );
 }

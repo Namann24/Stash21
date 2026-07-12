@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  ArrowLeft,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -12,6 +13,7 @@ import {
   Zap,
   X
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export type AdminSection = "overview" | "posts" | "comments" | "feedback" | "subscribers";
 
@@ -75,6 +77,18 @@ export default function AdminSidebar({
             <X className="w-5 h-5" />
           </button>
         )}
+      </div>
+
+      <div className="lg:hidden grid grid-cols-[1fr_auto] gap-2 p-4 border-b border-copper/10">
+        <Link
+          href="/"
+          className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-copper/15 text-xs text-stone-600 dark:text-steel hover:text-brass-dark dark:hover:text-brass-light hover:border-copper/30 transition-all"
+          onClick={onCloseMobile}
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back to site
+        </Link>
+        <ThemeToggle compact />
       </div>
 
       <nav className="flex-1 p-4 space-y-1">
