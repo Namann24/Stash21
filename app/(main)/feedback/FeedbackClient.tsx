@@ -7,6 +7,7 @@ import type { Feedback } from "@/lib/types";
 import { logError } from "@/lib/errorHandler";
 import ScrollReveal from "@/components/ScrollReveal";
 import TiltCard from "@/components/TiltCard";
+import { sanitizeInput } from "@/lib/sanitize";
 
 const CATEGORIES = ["Site Feedback", "Tutorial Request", "Hardware Project", "Bug Report", "Other"];
 const FILTERS = ["All", "Tutorial Requests", "Hardware Projects", "Site Feedback"];
@@ -50,15 +51,21 @@ export default function FeedbackClient() {
   }, []);
 
   const handleSubmit = async () => {
-    if (!message.trim()) return;
+    const sanitizedMessage = sanitizeInput(message.trim());
+    if (!sanitizedMessage) return;
+    
     setSubmitting(true);
+    
+    const sanitizedName = sanitizeInput(name.trim()) || null;
+    const sanitizedEmail = sanitizeInput(email.trim()) || null;
+
     const entry: Feedback = {
       id: crypto.randomUUID(),
-      name: name.trim() || null,
-      email: email.trim() || null,
+      name: sanitizedName,
+      email: sanitizedEmail,
       category,
       topic: null,
-      message: message.trim(),
+      message: sanitizedMessage,
       created_at: new Date().toISOString(),
       votes: 0
     };

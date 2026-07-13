@@ -129,7 +129,9 @@ begin
 end;
 $$ language plpgsql security definer;
 
--- Row level security
+-- ============================================================
+-- Row Level Security – enable (idempotent)
+-- ============================================================
 alter table posts enable row level security;
 alter table comments enable row level security;
 alter table reactions enable row level security;
@@ -138,26 +140,73 @@ alter table feedback enable row level security;
 alter table upvotes enable row level security;
 alter table subscribers enable row level security;
 
+-- ============================================================
+-- posts policies
+-- ============================================================
+drop policy if exists "Public can read published posts" on posts;
+drop policy if exists "Authenticated can manage posts" on posts;
+
 create policy "Public can read published posts" on posts for select using (published = true);
 create policy "Authenticated can manage posts" on posts for all using (auth.role() = 'authenticated');
 
+-- ============================================================
+-- comments policies
+-- ============================================================
+drop policy if exists "Public can read approved comments" on comments;
+drop policy if exists "Authenticated can read all comments" on comments;
+drop policy if exists "Public can insert comments" on comments;
+drop policy if exists "Authenticated can manage comments" on comments;
+
 create policy "Public can read approved comments" on comments for select using (approved = true);
 create policy "Authenticated can read all comments" on comments for select using (auth.role() = 'authenticated');
-create policy "Public can insert comments" on comments for insert with check (true);
+-- Security fix: prevent bypassing moderation on insert
+create policy "Public can insert comments" on comments for insert with check (approved = false);
 create policy "Authenticated can manage comments" on comments for all using (auth.role() = 'authenticated');
 
+-- ============================================================
+-- reactions policies
+-- ============================================================
+drop policy if exists "Public can read reactions" on reactions;
+drop policy if exists "Public can insert reactions" on reactions;
+
 create policy "Public can read reactions" on reactions for select using (true);
-create policy "Public can insert reactions" on reactions for insert with check (true);
+-- Security fix: public insert removed, reactions handled by RPC (security definer)
+
+-- ============================================================
+-- post_reactions policies
+-- ============================================================
+drop policy if exists "Public can read post reactions" on post_reactions;
+drop policy if exists "Public can insert post reactions" on post_reactions;
 
 create policy "Public can read post reactions" on post_reactions for select using (true);
-create policy "Public can insert post reactions" on post_reactions for insert with check (true);
+-- Security fix: public insert removed, reactions handled by RPC (security definer)
+
+-- ============================================================
+-- feedback policies
+-- ============================================================
+drop policy if exists "Public can read feedback" on feedback;
+drop policy if exists "Public can insert feedback" on feedback;
+drop policy if exists "Authenticated can manage feedback" on feedback;
 
 create policy "Public can read feedback" on feedback for select using (true);
-create policy "Public can insert feedback" on feedback for insert with check (true);
+-- Security fix: prevent vote manipulation on insert
+create policy "Public can insert feedback" on feedback for insert with check (votes = 0);
 create policy "Authenticated can manage feedback" on feedback for all using (auth.role() = 'authenticated');
 
-create policy "Public can insert upvotes" on upvotes for insert with check (true);
+-- ============================================================
+-- upvotes policies
+-- ============================================================
+drop policy if exists "Public can insert upvotes" on upvotes;
+drop policy if exists "Public can read upvotes" on upvotes;
+
+-- Security fix: public insert removed, upvotes handled by RPC (security definer)
 create policy "Public can read upvotes" on upvotes for select using (true);
+
+-- ============================================================
+-- subscribers policies
+-- ============================================================
+drop policy if exists "Public can subscribe" on subscribers;
+drop policy if exists "Authenticated can read subscribers" on subscribers;
 
 create policy "Public can subscribe" on subscribers for insert with check (true);
 create policy "Authenticated can read subscribers" on subscribers for select using (auth.role() = 'authenticated');

@@ -11,6 +11,7 @@ import ScrollReveal from "@/components/ScrollReveal";
 import Link from "next/link";
 import Image from "next/image";
 import TiltCard from "@/components/TiltCard";
+import { sanitizeInput } from "@/lib/sanitize";
 
 const REACTIONS = [
   { emoji: "\u{1F44D}", label: "Like" },
@@ -37,6 +38,7 @@ export default function BlogPostClient({
   const [submitting, setSubmitting] = useState(false);
   const [views, setViews] = useState(post?.views || 0);
   const [activeHeader, setActiveHeader] = useState("");
+  const postId = currentPost?.id;
 
   const readTime = Math.max(1, Math.ceil((currentPost?.content || "").split(/\s+/).length / 200));
   const headers = (currentPost?.content || "")
@@ -74,14 +76,14 @@ export default function BlogPostClient({
   }, [slug]);
 
   useEffect(() => {
-    if (!currentPost) return;
+    if (!postId) return;
 
     (async () => {
       // Increment views (once per session)
-      const viewedKey = `stash21_viewed_${currentPost.id}`;
+      const viewedKey = `stash21_viewed_${postId}`;
       if (!sessionStorage.getItem(viewedKey)) {
         try {
-          await supabase.rpc("increment_post_view", { p_post_id: currentPost.id });
+          await supabase.rpc("increment_post_view", { p_post_id: postId });
           setViews(prev => prev + 1);
           sessionStorage.setItem(viewedKey, "1");
         } catch (err) {
@@ -93,7 +95,7 @@ export default function BlogPostClient({
         const { data } = await supabase
           .from("comments")
           .select("*")
-          .eq("post_id", currentPost.id)
+          .eq("post_id", postId)
           .eq("approved", true)
           .order("created_at", { ascending: false });
         if (data) setComments(data as Comment[]);
@@ -105,7 +107,7 @@ export default function BlogPostClient({
         const { data } = await supabase
           .from("post_reactions")
           .select("emoji")
-          .eq("post_id", currentPost.id);
+          .eq("post_id", postId);
         if (data) {
           const counts = data.reduce<Record<string, number>>((acc, reaction) => {
             acc[reaction.emoji] = (acc[reaction.emoji] || 0) + 1;
@@ -119,7 +121,7 @@ export default function BlogPostClient({
           const { data } = await supabase
             .from("reactions")
             .select("emoji,count")
-            .eq("post_id", currentPost.id);
+            .eq("post_id", postId);
           if (data) {
             setReactionCounts(
               data.reduce<Record<string, number>>((acc, reaction) => {
@@ -133,12 +135,12 @@ export default function BlogPostClient({
         }
       }
       
-      const savedReactions = localStorage.getItem(`stash21_reactions_${currentPost.id}`);
+      const savedReactions = localStorage.getItem(`stash21_reactions_${postId}`);
       if (savedReactions) {
         setUserReactions(JSON.parse(savedReactions));
       }
     })();
-  }, [currentPost?.id]);
+  }, [postId]);
 
   useEffect(() => {
     if (!headers.length) return;
@@ -186,11 +188,20 @@ export default function BlogPostClient({
   const handleSubmitComment = async () => {
     if (!currentPost || !message.trim()) return;
     setSubmitting(true);
+    
+    const sanitizedName = sanitizeInput(name.trim()) || "Anonymous Maker";
+    const sanitizedMessage = sanitizeInput(message.trim());
+    
+    if (!sanitizedMessage) {
+      setSubmitting(false);
+      return;
+    }
+
     const newComment: Comment = {
       id: crypto.randomUUID(),
       post_id: currentPost.id,
-      author_name: name.trim() || "Anonymous Maker",
-      content: message.trim(),
+      author_name: sanitizedName,
+      content: sanitizedMessage,
       created_at: new Date().toISOString(),
       approved: true
     };

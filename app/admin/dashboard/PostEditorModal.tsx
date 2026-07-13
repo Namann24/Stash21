@@ -29,6 +29,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { Post } from "@/lib/types";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { uploadCoverImage, uploadInlineImage } from "@/lib/uploadImage";
+import { upsertPost } from "../actions";
 
 const CATEGORIES = [
   "Projects",
@@ -199,10 +200,12 @@ function snapshotFromPost(post: Post | null): EditorSnapshot {
 
 export default function PostEditorModal({
   post,
+  accessToken,
   onClose,
   onSaved
 }: {
   post: Post | null;
+  accessToken: string | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -492,7 +495,6 @@ export default function PostEditorModal({
     setUploadingInline(false);
     e.target.value = "";
     if (!url) return;
-
     const alt = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
     setCaptionText("");
     setPendingInlineImage({ url, alt, start: insertionStart, end: insertionEnd });
@@ -500,6 +502,12 @@ export default function PostEditorModal({
 
   const handleSave = async (isPublished: boolean) => {
     setSaveError("");
+
+    if (!accessToken) {
+      setSaveError("Admin session expired. Please sign in again.");
+      return;
+    }
+
     setSaving(true);
     const payload = {
       title,
@@ -513,21 +521,10 @@ export default function PostEditorModal({
     };
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) {
-        throw new Error("Your admin session expired. Please sign in again.");
-      }
-
       if (post) {
-        const { error } = await supabase.from("posts").update(payload).eq("id", post.id);
-        if (error) throw error;
+        await upsertPost(accessToken, { ...payload, id: post.id }, true);
       } else {
-        const insertPayload = {
-          ...payload,
-          author_id: sessionData.session.user.id
-        };
-        const { error } = await supabase.from("posts").insert(insertPayload);
-        if (error) throw error;
+        await upsertPost(accessToken, payload, false);
       }
 
       setSaving(false);

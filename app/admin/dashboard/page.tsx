@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
 import { logError } from "@/lib/errorHandler";
 import type { Post, Feedback, Subscriber, Comment } from "@/lib/types";
+import { getDashboardData, approveComment as actionApproveComment, deleteComment as actionDeleteComment, deletePost as actionDeletePost } from "../actions";
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
 import {
@@ -73,6 +74,7 @@ export default function AdminDashboard() {
   const [comments, setComments] = useState<CommentWithPost[]>([]);
   const [checking, setChecking] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
@@ -82,17 +84,77 @@ export default function AdminDashboard() {
   const [deletePrompt, setDeletePrompt] = useState<DeletePrompt | null>(null);
   const router = useRouter();
 
+  const requireCurrentAccessToken = useCallback(async () => {
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error || !data.session) {
+      setAccessToken(null);
+      router.replace("/admin");
+      router.refresh();
+      return null;
+    }
+
+    setAccessToken(data.session.access_token);
+    return data.session.access_token;
+  }, [router]);
+
+  const loadData = useCallback(async (tokenOverride?: string) => {
+    const token = tokenOverride ?? (await requireCurrentAccessToken());
+    if (!token) return;
+
+    setRefreshing(true);
+    try {
+      const data = await getDashboardData(token);
+      setPosts(data.posts as AdminPost[]);
+      setFeedback(data.feedback);
+      setSubscribers(data.subscribers);
+      setComments(data.comments as CommentWithPost[]);
+    } catch (err) {
+      logError("AdminDashboard.loadData", err);
+      const message = err instanceof Error ? err.message : "";
+      if (message.toLowerCase().includes("session") || message.toLowerCase().includes("allowed")) {
+        setAccessToken(null);
+        await supabase.auth.signOut();
+        router.replace("/admin");
+        router.refresh();
+      }
+    } finally {
+      setLastUpdated(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      setRefreshing(false);
+    }
+  }, [requireCurrentAccessToken, router]);
+
   useEffect(() => {
+    let active = true;
+
     (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        router.push("/admin");
+      setChecking(true);
+      const token = await requireCurrentAccessToken();
+      if (!active) return;
+
+      if (token) {
+        await loadData(token);
+      }
+
+      if (active) setChecking(false);
+    })();
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        setAccessToken(null);
+        router.replace("/admin");
+        router.refresh();
         return;
       }
-      setChecking(false);
-      loadData();
-    })();
-  }, [router]);
+
+      setAccessToken(session.access_token);
+    });
+
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, [loadData, requireCurrentAccessToken, router]);
 
   useEffect(() => {
     if (!deletePrompt) return;
@@ -105,101 +167,13 @@ export default function AdminDashboard() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [deletePrompt]);
 
-  const loadData = async () => {
-    setRefreshing(true);
-    let finalPosts: AdminPost[] = [];
-    try {
-      const { data: postData } = await supabase.from("posts").select("*").order("created_at", { ascending: false });
-      if (postData && postData.length > 0) finalPosts = postData as AdminPost[];
-    } catch (err) {
-      logError("AdminDashboard.loadPosts", err);
-    }
-    finalPosts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    const postIds = finalPosts.map((post) => post.id);
-
-    if (postIds.length > 0) {
-      try {
-        const { data: commentRows } = await supabase.from("comments").select("post_id").in("post_id", postIds);
-        if (commentRows) {
-          const commentCounts = commentRows.reduce<Record<string, number>>((acc, row) => {
-            acc[row.post_id] = (acc[row.post_id] || 0) + 1;
-            return acc;
-          }, {});
-          finalPosts = finalPosts.map((post) => ({
-            ...post,
-            commentsCount: commentCounts[post.id] || post.commentsCount || 0
-          }));
-        }
-      } catch (err) {
-        logError("AdminDashboard.loadComments", err);
-      }
-
-      try {
-        const { data: reactionRows } = await supabase.from("post_reactions").select("post_id").in("post_id", postIds);
-        if (reactionRows) {
-          const reactionCounts = reactionRows.reduce<Record<string, number>>((acc, row) => {
-            acc[row.post_id] = (acc[row.post_id] || 0) + 1;
-            return acc;
-          }, {});
-          finalPosts = finalPosts.map((post) => ({
-            ...post,
-            reactions: reactionCounts[post.id] || 0
-          }));
-        }
-      } catch (err) {
-        logError("AdminDashboard.loadReactions", err);
-        try {
-          const { data: reactionRows } = await supabase.from("reactions").select("post_id,count").in("post_id", postIds);
-          if (reactionRows) {
-            const reactionCounts = reactionRows.reduce<Record<string, number>>((acc, row) => {
-              acc[row.post_id] = (acc[row.post_id] || 0) + (row.count || 0);
-              return acc;
-            }, {});
-            finalPosts = finalPosts.map((post) => ({
-              ...post,
-              reactions: reactionCounts[post.id] || post.reactions || 0
-            }));
-          }
-        } catch (err2) {
-          logError("AdminDashboard.loadReactions.fallback", err2);
-        }
-      }
-    }
-
-    setPosts(finalPosts);
-
-    try {
-      const { data: fbData } = await supabase.from("feedback").select("*").order("created_at", { ascending: false });
-      setFeedback(fbData && fbData.length > 0 ? (fbData as Feedback[]) : []);
-    } catch (err) {
-      logError("AdminDashboard.loadFeedback", err);
-      setFeedback([]);
-    }
-
-    try {
-      const { data: subscriberData } = await supabase.from("subscribers").select("*").order("created_at", { ascending: false });
-      setSubscribers((subscriberData || []) as Subscriber[]);
-    } catch (err) {
-      logError("AdminDashboard.loadSubscribers", err);
-      setSubscribers([]);
-    }
-
-    try {
-      const { data: commentData } = await supabase.from("comments").select("*, posts(title)").order("created_at", { ascending: false });
-      if (commentData) setComments(commentData as unknown as CommentWithPost[]);
-    } catch (err) {
-      logError("AdminDashboard.loadCommentsAll", err);
-    }
-
-    setLastUpdated(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    setRefreshing(false);
-  };
-
   const handleApproveComment = async (id: string) => {
+    const token = await requireCurrentAccessToken();
+    if (!token) return;
+
     setComments((prev) => prev.map((c) => (c.id === id ? { ...c, approved: true } : c)));
     try {
-      await supabase.rpc("approve_comment", { p_comment_id: id });
+      await actionApproveComment(token, id);
     } catch (err) {
       logError("AdminDashboard.approveComment", err);
     }
@@ -220,26 +194,34 @@ export default function AdminDashboard() {
     setDeletePrompt(null);
 
     if (prompt.kind === "comment") {
+      const token = await requireCurrentAccessToken();
+      if (!token) return;
+
       setComments((prev) => prev.filter((c) => c.id !== prompt.id));
       try {
-        await supabase.from("comments").delete().eq("id", prompt.id);
+        await actionDeleteComment(token, prompt.id);
       } catch (err) {
         logError("AdminDashboard.deleteComment", err);
       }
       return;
     }
 
+    const token = await requireCurrentAccessToken();
+    if (!token) return;
+
     setPosts((prev) => prev.filter((p) => p.id !== prompt.id));
     try {
-      await supabase.from("posts").delete().eq("id", prompt.id);
+      await actionDeletePost(token, prompt.id);
     } catch (err) {
       logError("AdminDashboard.deletePost", err);
     }
   };
 
   const handleLogout = async () => {
+    setAccessToken(null);
     await supabase.auth.signOut();
-    router.push("/admin");
+    router.replace("/admin");
+    router.refresh();
   };
 
   const handleDeletePost = (post: Post) => {
@@ -353,7 +335,7 @@ export default function AdminDashboard() {
             </button>
             <button
               type="button"
-              onClick={loadData}
+              onClick={() => loadData()}
               disabled={refreshing}
               className="flex items-center justify-center gap-2 h-9 sm:h-auto px-3 md:px-4 sm:py-2 rounded-xl border border-copper/15 text-xs text-stone-600 dark:text-steel hover:text-brass-dark dark:hover:text-brass-light hover:border-copper/40 hover:bg-black/5 dark:hover:bg-black/20 transition-all disabled:opacity-50"
               aria-label="Refresh dashboard"
@@ -742,6 +724,7 @@ export default function AdminDashboard() {
       {editorOpen && (
         <PostEditorModal
           post={editingPost}
+          accessToken={accessToken}
           onClose={() => setEditorOpen(false)}
           onSaved={() => {
             setEditorOpen(false);
