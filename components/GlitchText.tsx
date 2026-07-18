@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, ReactNode } from "react";
-import { useSoundEffects } from "@/hooks/useSoundEffects";
+
 
 interface GlitchTextProps {
   children: string;

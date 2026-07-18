@@ -5,14 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/components/ThemeProvider";
 import { Moon, Sun } from "lucide-react";
 
-export default function ThemeToggle() {
+export default function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const { theme, toggle, mounted } = useTheme();
   const isDark = theme === "dark";
   const [isSurging, setIsSurging] = useState(false);
 
   if (!mounted) {
     return (
-      <div className="pcb-toggle opacity-50 pointer-events-none" aria-hidden="true">
+      <div className={`pcb-toggle opacity-50 pointer-events-none ${compact ? "scale-90 origin-right" : ""}`} aria-hidden="true">
         <div className="pcb-toggle-track" />
       </div>
     );
@@ -41,10 +41,10 @@ export default function ThemeToggle() {
   return (
     <motion.button
       onClick={handleToggle}
-      whileTap={{ scale: 0.92 }}
-      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: compact ? 0.85 : 0.92 }}
+      whileHover={{ scale: compact ? 0.95 : 1.05 }}
       aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
-      className="pcb-toggle group"
+      className={`pcb-toggle group ${compact ? "scale-90 origin-right" : ""}`}
       data-cursor-hover
     >
       {/* Background PCB Track */}
