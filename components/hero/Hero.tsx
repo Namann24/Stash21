@@ -122,7 +122,7 @@ export default function Hero() {
             <motion.div
               variants={badgeVariants}
               style={{ x: badgeX }}
-              className="inline-flex items-center gap-2 mb-6 pl-1.5 pr-3.5 py-1.5 rounded-full border border-circuit/30 bg-circuit/5"
+              className="inline-flex items-center gap-2 mb-6 pl-1.5 pr-3.5 py-1.5 rounded-full border border-circuit/30 bg-[#0A0A0A] shadow-md"
             >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-circuit opacity-60" />
@@ -141,9 +141,9 @@ export default function Hero() {
             </motion.h1>
 
             {/* Version */}
-            <motion.div variants={itemVariants} className="flex items-center gap-2 mb-6">
-              <div className="h-px w-10 bg-circuit/60" />
-              <span className="font-mono text-xs text-circuit tracking-[0.3em]">v2.6.0 // ONLINE</span>
+            <motion.div variants={itemVariants} className="flex items-center gap-2 mb-6 inline-flex bg-[#0A0A0A] px-3 py-1.5 rounded border border-circuit/20 shadow-sm">
+              <div className="h-px w-6 bg-circuit/60" />
+              <span className="font-mono text-[10px] text-circuit tracking-[0.3em]">v2.6.0 // ONLINE</span>
             </motion.div>
 
             {/* Description */}
@@ -206,7 +206,7 @@ export default function Hero() {
             <motion.div
               style={{ opacity: hintOpacity }}
               whileHover={{ scale: 1.05 }}
-              className="flex items-center gap-2 px-4 py-2 rounded-full border border-copper/25 bg-black/20 backdrop-blur-sm float-anim-slow"
+              className="flex items-center gap-2 px-4 py-2 rounded-full border border-copper/25 bg-[#0A0A0A] shadow-md float-anim-slow"
             >
               <Radio className="w-3.5 h-3.5 text-circuit neon-flicker" />
               <span className="font-mono text-[11px] text-steel tracking-widest">SCROLL TO EXPLODE THE BOARD</span>

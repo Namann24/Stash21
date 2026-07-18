@@ -2,9 +2,11 @@ import "./globals.css";
 import type { Metadata } from "next";
 import BackgroundFX from "@/components/BackgroundFX";
 import AmbientGlow from "@/components/AmbientGlow";
-import CustomCursor from "@/components/CustomCursor";
 import ThemeProvider from "@/components/ThemeProvider";
 import FloatingGears from "@/components/FloatingGears";
+import BootSequence from "@/components/BootSequence";
+import CircuitTraces from "@/components/CircuitTraces";
+import RadarSweep from "@/components/RadarSweep";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://stash21.com"),
@@ -56,11 +58,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-body antialiased relative" style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}>
         <ThemeProvider>
+          <div className="crt-overlay" />
+          <RadarSweep />
+          <BootSequence />
           <div className="noise-overlay" />
           <BackgroundFX />
           <AmbientGlow />
+          <CircuitTraces />
           <FloatingGears />
-          <CustomCursor />
           {children}
         </ThemeProvider>
       </body>

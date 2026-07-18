@@ -52,7 +52,7 @@ export default function Footer() {
                 whileHover={{ scale: 1.1, rotate: 5 }}
                 transition={{ type: "spring", stiffness: 400, damping: 15 }}
               >
-                <Image src="/logo.png" alt="Stash21 logo" fill sizes="32px" className="object-contain group-hover:drop-shadow-[0_0_14px_rgba(201,162,75,0.45)] transition-all duration-300" />
+                <Image src="/logo-clean.png" alt="Stash21 logo" fill sizes="32px" className="object-contain group-hover:drop-shadow-[0_0_14px_rgba(201,162,75,0.45)] transition-all duration-300" />
               </motion.div>
               <span className="font-display text-lg tracking-[0.15em] metal-text">STASH21</span>
             </div>

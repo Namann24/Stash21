@@ -7,6 +7,7 @@ import WhyStash21 from "@/components/home/WhyStash21";
 import TechMarquee from "@/components/TechMarquee";
 import CtaBanner from "@/components/home/CtaBanner";
 import Newsletter from "@/components/home/Newsletter";
+import TerminalStats from "@/components/home/TerminalStats";
 import { supabase } from "@/lib/supabaseClient";
 import { SAMPLE_POSTS } from "@/lib/samplePosts";
 import type { Post } from "@/lib/types";
@@ -39,6 +40,7 @@ export default async function HomePage() {
       <Manifesto />
       <FeaturedPosts posts={posts} />
       <WhyStash21 />
+      <TerminalStats />
       <Newsletter />
       <CtaBanner />
     </>

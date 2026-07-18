@@ -122,7 +122,7 @@ export default function AdminLoginPage() {
         
         <Link href="/" className="flex items-center gap-3 mb-12 relative z-10">
           <div className="relative w-10 h-10">
-            <Image src="/logo.png" alt="Stash21" fill sizes="40px" className="object-contain" />
+            <Image src="/logo-clean.png" alt="Stash21" fill sizes="40px" className="object-contain" />
           </div>
           <div>
             <p className="font-display text-sm tracking-[0.12em] text-brass-light">STASH21</p>
@@ -186,7 +186,7 @@ export default function AdminLoginPage() {
         >
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <div className="relative w-9 h-9">
-              <Image src="/logo.png" alt="Stash21" fill sizes="36px" className="object-contain" />
+              <Image src="/logo-clean.png" alt="Stash21" fill sizes="36px" className="object-contain" />
             </div>
             <p className="font-display text-sm tracking-[0.12em] text-brass-light">STASH21 Admin</p>
           </div>

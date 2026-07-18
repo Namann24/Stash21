@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 
 /* SVG Gear path — 12-tooth cog */
 function GearSVG({ size, className }: { size: number; className?: string }) {
@@ -25,6 +25,12 @@ function GearSVG({ size, className }: { size: number; className?: string }) {
 }
 
 export default function FloatingGears() {
+  const { scrollYProgress } = useScroll();
+  const y1 = useTransform(scrollYProgress, [0, 1], [0, 250]);
+  const y2 = useTransform(scrollYProgress, [0, 1], [0, -200]);
+  const y3 = useTransform(scrollYProgress, [0, 1], [0, 150]);
+  const y4 = useTransform(scrollYProgress, [0, 1], [0, -120]);
+
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden -z-5" aria-hidden="true">
       {/* Top-left large gear */}
@@ -32,7 +38,7 @@ export default function FloatingGears() {
         className="floating-gear absolute -top-12 -left-12"
         animate={{ rotate: 360 }}
         transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-        style={{ willChange: "transform" }}
+        style={{ willChange: "transform", y: y1 }}
       >
         <GearSVG size={180} />
       </motion.div>
@@ -42,7 +48,7 @@ export default function FloatingGears() {
         className="floating-gear absolute -bottom-8 -right-8"
         animate={{ rotate: -360 }}
         transition={{ duration: 32, repeat: Infinity, ease: "linear" }}
-        style={{ willChange: "transform" }}
+        style={{ willChange: "transform", y: y2 }}
       >
         <GearSVG size={140} />
       </motion.div>
@@ -52,7 +58,7 @@ export default function FloatingGears() {
         className="floating-gear absolute top-[40%] -right-4"
         animate={{ rotate: 360 }}
         transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-        style={{ willChange: "transform" }}
+        style={{ willChange: "transform", y: y3 }}
       >
         <GearSVG size={80} />
       </motion.div>
@@ -62,7 +68,7 @@ export default function FloatingGears() {
         className="floating-gear absolute bottom-[20%] -left-6"
         animate={{ rotate: -360 }}
         transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
-        style={{ willChange: "transform" }}
+        style={{ willChange: "transform", y: y4 }}
       >
         <GearSVG size={100} />
       </motion.div>

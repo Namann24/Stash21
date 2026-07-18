@@ -60,7 +60,7 @@ export default function AdminSidebar({
         <Link href="/" className="flex items-center gap-3 group">
           <div className="relative w-9 h-9">
             <Image
-              src="/logo.png"
+              src="/logo-clean.png"
               alt="Stash21"
               fill
               sizes="36px"

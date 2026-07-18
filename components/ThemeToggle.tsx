@@ -1,157 +1,131 @@
 "use client";
 
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/components/ThemeProvider";
+import { Moon, Sun } from "lucide-react";
 
-export default function ThemeToggle({ compact = false }: { compact?: boolean }) {
+export default function ThemeToggle() {
   const { theme, toggle, mounted } = useTheme();
   const isDark = theme === "dark";
+  const [isSurging, setIsSurging] = useState(false);
 
   if (!mounted) {
     return (
-      <div className={`gear-toggle ${compact ? "gear-toggle-compact" : ""}`} aria-hidden="true">
-        <span className="gear-toggle-track">
-          <span className="gear-toggle-track-inner" />
-        </span>
+      <div className="pcb-toggle opacity-50 pointer-events-none" aria-hidden="true">
+        <div className="pcb-toggle-track" />
       </div>
     );
   }
 
+  const handleToggle = () => {
+    if (isSurging) return; // Prevent spam clicking
+
+    setIsSurging(true);
+
+    // Trigger global body glitch surge
+    document.body.classList.add("power-surge-active");
+
+    // Wait half-way through the surge to actually flip the colors
+    setTimeout(() => {
+      toggle();
+    }, 250);
+
+    // Remove the class when surge is done
+    setTimeout(() => {
+      document.body.classList.remove("power-surge-active");
+      setIsSurging(false);
+    }, 600);
+  };
+
   return (
     <motion.button
-      onClick={toggle}
+      onClick={handleToggle}
       whileTap={{ scale: 0.92 }}
       whileHover={{ scale: 1.05 }}
       aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
-      className={`gear-toggle ${compact ? "gear-toggle-compact" : ""}`}
+      className="pcb-toggle group"
       data-cursor-hover
     >
-      {/* Track background */}
-      <span className="gear-toggle-track">
-        <span className="gear-toggle-track-inner" />
+      {/* Background PCB Track */}
+      <span className="pcb-toggle-track">
+        {/* Copper Traces */}
+        <span className="pcb-trace pcb-trace-1" />
+        <span className="pcb-trace pcb-trace-2" />
+        <span className="pcb-trace pcb-trace-3" />
+        
+        {/* Solder Pads */}
+        <span className="pcb-pad pcb-pad-left" />
+        <span className="pcb-pad pcb-pad-right" />
+        
+        {/* Drill Vias */}
+        <span className="pcb-via pcb-via-left" />
+        <span className="pcb-via pcb-via-right" />
 
-        {/* Active glow behind knob position */}
+        {/* Ambient track glow when hovered */}
         <motion.span
-          className="absolute inset-0 rounded-[16px] pointer-events-none"
+          className="pcb-toggle-active-glow"
           animate={{
             background: isDark
-              ? "radial-gradient(circle at 22% 50%, rgba(77,216,232,0.18), transparent 55%)"
-              : "radial-gradient(circle at 78% 50%, rgba(243,223,168,0.28), transparent 55%)"
+              ? "radial-gradient(circle at 20% 50%, rgba(77,216,232,0.15), transparent 60%)"
+              : "radial-gradient(circle at 80% 50%, rgba(201,162,75,0.15), transparent 60%)"
           }}
           transition={{ duration: 0.5 }}
         />
       </span>
 
-      {/* Tick marks decoration */}
-      <span className="gear-toggle-ticks" />
+      {/* Under-track icons (visible when knob slides away) */}
+      <span className="pcb-label pcb-label-left">
+        <Moon className="pcb-label-icon w-3 h-3" />
+      </span>
+      <span className="pcb-label pcb-label-right">
+        <Sun className="pcb-label-icon w-3.5 h-3.5" />
+      </span>
 
-      {/* Sliding knob with gear SVG */}
+      {/* Sliding Physical Component */}
       <motion.span
-        className="gear-toggle-knob"
-        animate={{
-          x: isDark ? 0 : compact ? 28 : 36,
-        }}
+        className="pcb-knob"
+        animate={{ x: isDark ? 0 : 34 }}
         transition={{
           type: "spring",
-          stiffness: 400,
-          damping: 28,
-          mass: 0.9,
+          stiffness: 500,
+          damping: 25,
+          mass: 0.8,
         }}
       >
-        {/* Knob background */}
+        <span className="pcb-knob-glow" />
+        
+        {/* LED Indicator on the chip */}
         <motion.span
-          className="gear-toggle-knob-inner"
+          className="pcb-led"
           animate={{
-            boxShadow: isDark
-              ? "0 0 14px 3px rgba(77,216,232,0.40), inset 0 0 8px rgba(77,216,232,0.15)"
-              : "0 0 14px 3px rgba(243,223,168,0.50), inset 0 0 8px rgba(243,223,168,0.20)"
+            backgroundColor: isDark ? "#4DD8E8" : "#E8CE8C",
+            boxShadow: isDark 
+              ? "0 0 8px 2px rgba(77,216,232,0.6)" 
+              : "0 0 8px 2px rgba(232,206,140,0.6)"
           }}
-          transition={{ duration: 0.4 }}
+          transition={{ duration: 0.2 }}
         />
 
-        {/* Rotating gear border SVG */}
-        <motion.svg
-          className="absolute inset-[-3px] w-[32px] h-[32px]"
-          viewBox="0 0 32 32"
-          animate={{ rotate: isDark ? 0 : 180 }}
-          transition={{
-            type: "spring",
-            stiffness: 200,
-            damping: 20,
-            mass: 1,
-          }}
-        >
-          {/* Gear teeth */}
-          {Array.from({ length: 8 }).map((_, i) => {
-            const angle = (i * 45) * Math.PI / 180;
-            const cx = 16 + Math.cos(angle) * 14;
-            const cy = 16 + Math.sin(angle) * 14;
-            return (
-              <circle
-                key={i}
-                cx={cx}
-                cy={cy}
-                r="2"
-                fill={isDark ? "rgba(77,216,232,0.45)" : "rgba(201,162,75,0.55)"}
-                className="transition-colors duration-300"
-              />
-            );
-          })}
-        </motion.svg>
-
-        {/* Sun / Moon icon animated */}
-        <AnimatePresence mode="wait" initial={false}>
-          {isDark ? (
+        {/* High-voltage Spark Effect attached to the sliding knob */}
+        <AnimatePresence>
+          {isSurging && (
             <motion.svg
-              key="moon"
-              className="gear-toggle-icon"
+              className="absolute z-10 pointer-events-none w-10 h-10"
+              style={{ top: -8, left: -8, color: isDark ? "#4DD8E8" : "#E8CE8C" }}
               viewBox="0 0 24 24"
-              fill="none"
-              initial={{ rotate: -30, scale: 0, opacity: 0 }}
-              animate={{ rotate: 0, scale: 1, opacity: 1 }}
-              exit={{ rotate: 30, scale: 0, opacity: 0 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: [0, 1, 0, 1, 0], scale: 1.2, rotate: [0, 15, -15, 0] }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
             >
               <path
-                d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
-                stroke="#4DD8E8"
+                d="M13 2L3 14H12L11 22L21 10H12L13 2Z"
+                fill="currentColor"
+                stroke="currentColor"
                 strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="rgba(77,216,232,0.15)"
+                filter="drop-shadow(0 0 6px currentColor)"
               />
-            </motion.svg>
-          ) : (
-            <motion.svg
-              key="sun"
-              className="gear-toggle-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              initial={{ rotate: 30, scale: 0, opacity: 0 }}
-              animate={{ rotate: 0, scale: 1, opacity: 1 }}
-              exit={{ rotate: -30, scale: 0, opacity: 0 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-            >
-              <circle cx="12" cy="12" r="4" stroke="#C9A24B" strokeWidth="1.5" fill="rgba(201,162,75,0.20)" />
-              {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
-                const rad = (deg * Math.PI) / 180;
-                const x1 = 12 + Math.cos(rad) * 7;
-                const y1 = 12 + Math.sin(rad) * 7;
-                const x2 = 12 + Math.cos(rad) * 9;
-                const y2 = 12 + Math.sin(rad) * 9;
-                return (
-                  <line
-                    key={deg}
-                    x1={x1}
-                    y1={y1}
-                    x2={x2}
-                    y2={y2}
-                    stroke="#C9A24B"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                );
-              })}
             </motion.svg>
           )}
         </AnimatePresence>

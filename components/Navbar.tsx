@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence, useMotionValueEvent, useScroll } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import GlitchText from "@/components/GlitchText";
 
 const navVariants = {
   hidden: { y: -30, opacity: 0 },
@@ -85,18 +86,18 @@ export default function Navbar() {
         <span className="nav-shine" />
 
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group shrink-0 relative z-10" data-cursor-hover>
+        <Link href="/" className="flex items-center gap-3 group shrink-0 relative z-10" data-cursor-hover>
           <motion.div
-            className="relative w-9 h-9"
+            className="relative w-12 h-12"
             whileHover={{ scale: 1.12, rotate: 3 }}
             whileTap={{ scale: 0.95 }}
             transition={{ type: "spring", stiffness: 400, damping: 15 }}
           >
             <Image
-              src="/logo.png"
+              src="/logo-clean.png"
               alt="Stash21 logo"
               fill
-              sizes="36px"
+              sizes="48px"
               className="object-contain drop-shadow-[0_0_10px_rgba(201,162,75,0.35)] group-hover:drop-shadow-[0_0_20px_rgba(201,162,75,0.65)] transition-all duration-300"
               priority
               loading="eager"
@@ -153,7 +154,7 @@ export default function Navbar() {
                     ? "text-ink font-semibold"
                     : "text-steel hover:text-brass-light"
                 }`}>
-                  {l.label}
+                  <GlitchText>{l.label}</GlitchText>
                 </span>
               </Link>
             );
@@ -178,7 +179,7 @@ export default function Navbar() {
         {/* Mobile hamburger */}
         <motion.button
           className="md:hidden text-brass relative z-10"
-          onClick={() => setOpen(!open)}
+          onClick={() => { setOpen(!open); }}
           aria-label="Toggle menu"
           whileTap={{ scale: 0.9 }}
         >
